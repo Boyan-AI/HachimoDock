@@ -22,3 +22,6 @@ FFmpeg 为独立可执行文件。可从HachimoDock **v0.1.52** 安装包取得�
 编译客户端不需要云服务 Key；运行语音识别或形象生成时，再在客户端配置所用服务。
 
 内部 Windows 包：在完成内部版主程序构建后，使用 `PET_MANAGER_WINDOWS_INSTALLER_FLAVOR=INTERNAL node scripts/build-windows-nsis-cross.mjs` 生成带 `INTERNAL` 标记的 NSIS 安装包，避免与外发包混淆。该参数仅标记安装包名称，不会注入 Key 或证书，也不能代替内部版构建及凭据检查。外发构建不要设置此参数。
+## 本机状态采样
+
+电脑状态组件使用 `sysinfo`（锁定版本见 Cargo.lock），只启用 system/network 功能；只刷新 CPU、内存与网络计数，不枚举进程、用户名、主机名或文件。上游接口说明见 [System](https://docs.rs/sysinfo/0.39.6/sysinfo/struct.System.html) 与 [Networks](https://docs.rs/sysinfo/0.39.6/sysinfo/struct.Networks.html)。其 MIT 版权声明随 macOS / Windows 安装资源的 `licenses/sysinfo-LICENSE.txt` 一起保留。
