@@ -18,6 +18,7 @@
  *          empty-queue clearing and full active-ID signals,
  *          exact visible-card encoder selection isolated from background routing,
  *          manual and focus-refreshed local Agent discovery with visible scan feedback,
+ *          浏览器预览的本机 Agent 扫描能力提示，
  *          a default-open status-first voice console,
  *          default-enabled first-run voice input that preserves an explicit user opt-out,
  *          model-v9 P4 defaults that map joystick up/down to Previous/Next,
@@ -824,13 +825,17 @@ export default function DeviceDashboard({ active = true, binding, onUnbind, onOp
   const buttonConfigTargetBoardDeviceId = usb.connected
     ? (usb.boardDeviceId || onlineBoardDeviceId || binding?.boardDeviceId || "")
     : "";
-  const agentScanSummary = agentScan?.error
-    ? "扫描失败，请重试"
-    : agentScan?.pending
-      ? "正在读取本机 CLI"
-      : agentScan?.scannedAt
-        ? `已检测到 ${agentScan.detectedCount} 个 Agent，设备端仅显示当前跟随的 Agent 状态，对话结束后设备气泡保留显示 60 秒`
-        : "读取本机已安装的 CLI Agent";
+  // 浏览器预览无法调用本机扫描，说明能力限制并禁用无效的重试入口。
+  const hasNativeAgentScan = typeof window !== "undefined" && Boolean(window.__TAURI_INTERNALS__);
+  const agentScanSummary = !hasNativeAgentScan
+    ? "浏览器预览无法扫描本机 Agent，请运行桌面客户端"
+    : agentScan?.error
+      ? "扫描失败，请重试"
+      : agentScan?.pending
+        ? "正在读取本机 CLI"
+        : agentScan?.scannedAt
+          ? `已检测到 ${agentScan.detectedCount} 个 Agent，设备端仅显示当前跟随的 Agent 状态，对话结束后设备气泡保留显示 60 秒`
+          : "读取本机已安装的 CLI Agent";
 
   const handleRefreshAgents = useCallback(async () => {
     try {
@@ -1504,6 +1509,7 @@ export default function DeviceDashboard({ active = true, binding, onUnbind, onOp
             size="small"
             loading={agentScan?.pending === true}
             loadingLabel="扫描中…"
+            disabled={!hasNativeAgentScan}
             onClick={handleRefreshAgents}
             aria-label="重新扫描本机 CLI Agent"
           >
