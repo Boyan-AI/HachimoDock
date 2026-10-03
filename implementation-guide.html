@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>HachimoDock 新手实现路线图</title>
+  <style>
+    :root{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:#182c38;background:#f3f7f6;scroll-behavior:smooth}
+    *{box-sizing:border-box}body{margin:0;line-height:1.65}a{color:#0b706b;text-underline-offset:3px}a:hover{color:#064e4a}button,input{font:inherit}button{cursor:pointer}
+    .shell{max-width:1280px;margin:auto;padding:30px 28px 80px}.hero{position:relative;overflow:hidden;background:#12353b;color:#fff;border-radius:28px;padding:48px 54px 42px;box-shadow:0 18px 48px #164a4a21}.hero:after{content:"";position:absolute;width:420px;height:420px;right:-110px;top:-195px;border-radius:50%;background:radial-gradient(circle,#50dbbf60,#50dbbf00 70%);pointer-events:none}.eyebrow{text-transform:uppercase;letter-spacing:.19em;font-size:12px;font-weight:800;color:#90e2d1}.hero h1{font-size:clamp(34px,4.2vw,60px);letter-spacing:-.04em;line-height:1.12;margin:14px 0 18px}.hero p{max-width:730px;font-size:18px;color:#d2e9e6;margin:0}.hero-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}.pill{border:1px solid #ffffff44;background:#ffffff13;border-radius:99px;padding:6px 13px;font-size:13px;font-weight:700}.hero-img{position:absolute;right:55px;bottom:28px;width:112px;height:112px;object-fit:contain;filter:drop-shadow(0 12px 20px #0005)}
+    .notice{margin-top:20px;padding:16px 20px;background:#fff8e8;border:1px solid #f2d992;border-radius:15px;color:#634819}.notice strong{color:#704d08}.overview{display:grid;grid-template-columns:1.3fr .7fr;gap:18px;margin-top:20px}.panel{background:#fff;border:1px solid #dce8e6;border-radius:20px;padding:23px;box-shadow:0 8px 24px #1d55530a}.panel h2,.panel h3{margin:0 0 12px;line-height:1.3}.panel h2{font-size:21px}.panel p{margin:6px 0 14px;color:#4e646c}.architecture{display:flex;align-items:stretch;gap:8px;overflow-x:auto;padding:7px 0 2px}.arch-node{min-width:125px;flex:1;background:#eaf6f3;border:1px solid #b9ded7;padding:13px;border-radius:13px;text-align:center;font-size:14px}.arch-node b{display:block;font-size:15px}.arch-node small{display:block;color:#526d72}.arch-arrow{align-self:center;font-size:25px;color:#359587;font-weight:800}.route{display:flex;flex-direction:column;gap:9px}.route-line{display:flex;gap:10px;align-items:flex-start}.route-line span:first-child{background:#dff4ee;color:#11685d;border-radius:9px;font-weight:800;padding:0 8px}.route-line small{display:block;color:#60737b}
+    .layout{display:grid;grid-template-columns:235px minmax(0,1fr);gap:24px;align-items:start;margin-top:28px}.sidebar{position:sticky;top:18px;background:#fff;border:1px solid #dce8e6;border-radius:18px;padding:18px}.sidebar h2{font-size:16px;margin:0 0 11px}.progress-wrap{background:#e5eeec;border-radius:100px;height:10px;overflow:hidden}.progress-fill{height:100%;background:linear-gradient(90deg,#17a492,#74cba9);width:0;transition:width .25s}.progress-label{font-size:13px;color:#566c72;margin:9px 0 18px}.sidebar nav{display:grid;gap:3px}.sidebar a{display:block;padding:9px 10px;border-radius:9px;text-decoration:none;font-size:13px;font-weight:700;color:#405a62}.sidebar a:hover,.sidebar a:focus-visible{background:#eaf6f3;color:#0a6e64}.stage-heading{display:flex;align-items:center;gap:13px;margin:10px 0 15px}.stage-heading h2{font-size:25px;margin:0}.stage-heading span{background:#d4eee6;color:#12695e;border-radius:99px;padding:5px 11px;font-size:12px;font-weight:800}.stage-intro{margin:0 0 22px;color:#546b72}.step{background:#fff;border:1px solid #dce8e6;border-radius:20px;margin:0 0 18px;overflow:hidden;box-shadow:0 9px 28px #1d55530a}.step-header{display:flex;gap:17px;align-items:flex-start;padding:23px 26px 18px}.step-number{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:13px;background:#126d67;color:#fff;font-weight:900}.step-title{min-width:0;flex:1}.step-title h3{font-size:21px;line-height:1.3;margin:0 0 5px}.step-title p{margin:0;color:#5d7077;font-size:14px}.step-body{padding:0 26px 24px 87px}.step-body p{margin:0 0 12px}.step-body ol,.step-body ul{padding-left:23px;margin:8px 0 15px}.step-body li{margin-bottom:7px}.step-body h4{margin:22px 0 8px;font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:#4c6769}.step-body code,.tiny-code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.91em;background:#eaf1f1;border-radius:5px;padding:2px 5px}.command{background:#172d35;color:#eff9f7;padding:15px 17px;border-radius:11px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;margin:10px 0 15px}.command .muted{color:#9fc6c1}.check{display:flex;gap:10px;align-items:flex-start;background:#edf8f4;border:1px solid #c7e9df;padding:11px 14px;border-radius:11px;color:#1b685d;font-weight:700;margin-top:15px}.check input{width:18px;height:18px;accent-color:#138476;flex:none;margin-top:4px}.check span{font-size:14px}.caution{background:#fff6e8;border-left:4px solid #e5a642;padding:12px 15px;border-radius:0 9px 9px 0;color:#704c16;margin:14px 0}.source{border-top:1px solid #e6eeec;margin-top:18px;padding-top:12px;font-size:13px;color:#688087}.source a{margin-right:13px;white-space:nowrap}.step.done .step-number{background:#6aa997}.step.done .step-title h3:after{content:" 已完成";font-size:12px;color:#17816f;font-weight:700;margin-left:9px;vertical-align:middle}.filemap{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.filemap a{display:block;background:#f0f7f5;border:1px solid #d8eae5;padding:12px;border-radius:10px;text-decoration:none;font-size:13px}.filemap a b{display:block;color:#17675f}.filemap a small{color:#60767b}.end{background:#173d41;color:#ecf7f5;border-radius:20px;padding:28px;margin-top:24px}.end h2{margin:0 0 9px}.end p{margin:0 0 12px}.end a{color:#b6eee0}.footer{margin-top:22px;color:#677c80;font-size:13px}.sep{height:24px}
+    @media(max-width:850px){.overview{grid-template-columns:minmax(0,1fr)}.layout{grid-template-columns:minmax(0,1fr)}.sidebar{position:static;min-width:0}.sidebar nav{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-img{opacity:.2;right:20px}.hero{padding:36px 28px}.shell{padding:16px 15px 50px}}@media(max-width:550px){.sidebar nav{grid-template-columns:minmax(0,1fr)}.architecture{flex-direction:column}.arch-arrow{transform:rotate(90deg);line-height:1}.step-header{padding:20px 18px 14px;gap:12px}.step-body{padding:0 18px 21px}.step-number{width:36px;height:36px}.filemap{grid-template-columns:minmax(0,1fr)}.hero p{font-size:16px}.hero-img{display:none}}
+    @media print{body{background:#fff}.shell{max-width:none;padding:0}.hero,.panel,.step,.sidebar{box-shadow:none}.layout{display:block}.sidebar{display:none}.step{break-inside:avoid}.hero{color:#fff!important;print-color-adjust:exact}.check{print-color-adjust:exact}}
+  </style>
+</head>
+<body>
+  <main class="shell" id="top">
+    <header class="hero">
+      <div class="eyebrow">HACHIMODOCK · BEGINNER ROADMAP</div>
+      <h1>从零复刻<br>一台哈基米机</h1>
+      <p>按仓库当前代码和文档整理的动手路线。先让实体设备与桌面客户端跑通，再学习源码和做第一个小改动。每一步都有操作、验收点和原始资料入口。</p>
+      <div class="hero-meta"><span class="pill">桌面端 · Tauri 2 + React</span><span class="pill">设备端 · ESP32-P4</span><span class="pill">通信 · USB</span><span class="pill">文档依据 · 0.1.101 / 0.7.72-p4</span></div>
+      <img class="hero-img" src="assets/hachimodock-mark.png" alt="HachimoDock 标志">
+    </header>
+
+    <aside class="notice"><strong>先明确目标：</strong>本教程把“实现”理解为<strong>复刻并运行当前仓库的完整作品</strong>。仓库包含客户端和固件源码；PCB、BOM、外壳与装配资料在 <a href="https://oshwhub.com/eda_gqvzlprk/project_cnbmkbjc#3-%E7%A1%AC%E4%BB%B6%E5%A4%8D%E5%88%BB" target="_blank" rel="noopener noreferrer">OSHWHub 硬件复刻页</a>。如果你只想改软件，可以跳到第 5 步。</aside>
+
+    <section class="overview" aria-label="项目概览">
+      <div class="panel">
+        <h2>它是怎样工作的？</h2>
+        <p>电脑上的 Agent 工作状态经 Bridge 汇总，由客户端通过 USB 发给设备；设备把状态画成宠物动画和 Session 气泡。设备按键与语音事件沿反方向送回电脑。</p>
+        <div class="architecture" role="img" aria-label="Agent 经过 Bridge 和 Tauri 客户端，通过 USB 连接 ESP32-P4 设备，再输出到屏幕和按键">
+          <div class="arch-node"><b>Agent</b><small>Codex / Claude 等</small></div><span class="arch-arrow" aria-hidden="true">→</span>
+          <div class="arch-node"><b>Bridge</b><small>读取 Session</small></div><span class="arch-arrow" aria-hidden="true">→</span>
+          <div class="arch-node"><b>桌面客户端</b><small>React + Tauri</small></div><span class="arch-arrow" aria-hidden="true">⇄</span>
+          <div class="arch-node"><b>ESP32-P4</b><small>USB · 显示 · 输入</small></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>两段路线</h2>
+        <div class="route">
+          <div class="route-line"><span>1–4</span><div><b>先做出可用成品</b><small>硬件、匹配镜像、安装客户端、联调</small></div></div>
+          <div class="route-line"><span>5–8</span><div><b>再学会自己修改</b><small>网页预览、原生运行、固件构建、小功能验证</small></div></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="layout">
+      <aside class="sidebar" aria-label="教程导航">
+        <h2>学习进度</h2>
+        <div class="progress-wrap" role="progressbar" aria-label="已完成步骤" aria-valuemin="0" aria-valuemax="8" aria-valuenow="0" id="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+        <p class="progress-label" id="progress-label" aria-live="polite">已完成 0 / 8 步</p>
+        <nav>
+          <a href="#step-1">01 · 准备硬件</a><a href="#step-2">02 · 判断芯片版本</a><a href="#step-3">03 · 烧录与首启</a><a href="#step-4">04 · 桌面联调</a>
+          <a href="#step-5">05 · 跑网页预览</a><a href="#step-6">06 · 跑完整客户端</a><a href="#step-7">07 · 构建固件</a><a href="#step-8">08 · 做第一个改动</a>
+        </nav>
+      </aside>
+      <div>
+        <div class="stage-heading"><span>第一阶段</span><h2>先做出可用成品</h2></div>
+        <p class="stage-intro">前四步优先使用发布包。你能更快确认硬件、屏幕、USB 和 Agent 跟随确实工作，之后再处理复杂的编译环境。</p>
+
+        <section class="step" id="step-1" aria-labelledby="title-1"><div class="step-header"><div class="step-number">01</div><div class="step-title"><h3 id="title-1">从硬件资料确认购物清单</h3><p>先确认板、屏、输入和供电，暂时不用打样自制 PCB。</p></div></div><div class="step-body">
+          <ol><li>打开 <a href="https://oshwhub.com/eda_gqvzlprk/project_cnbmkbjc#3-%E7%A1%AC%E4%BB%B6%E5%A4%8D%E5%88%BB" target="_blank" rel="noopener noreferrer">硬件复刻页</a>，逐项核对 PCB、BOM、接线和外壳资料。</li><li>准备 ESP32-P4 主板、适配的 2.8 英寸 480×640 MIPI-DSI 屏、USB 数据线；按 BOM 再准备三个按键、摇杆和音频器件。</li><li>第一次联调可以先用杜邦线；确认工作后再考虑定制 PCB 与外壳。</li></ol>
+          <div class="caution">屏幕排线接 <b>DSI</b> 显示接口，不接 CSI 摄像头接口；插拔排线前先断电。接口、电压和排线定义必须和硬件资料一致。</div>
+          <label class="check"><input type="checkbox" data-step="1"><span>验收：已拿到与硬件资料相符的主板、屏和 USB 数据线，并记录缺少的配件。</span></label>
+          <div class="source">依据：<a href="README.md#硬件方案">硬件方案</a><a href="README.md#硬件端资料">硬件端资料</a></div>
+        </div></section>
+
+        <section class="step" id="step-2" aria-labelledby="title-2"><div class="step-header"><div class="step-number">02</div><div class="step-title"><h3 id="title-2">查明 ESP32-P4 芯片版本</h3><p>完整烧录包分 v1 和 v3，选择依据是芯片修订版，不是电脑系统。</p></div></div><div class="step-body">
+          <ol><li>通过 USB 串口运行下面的只读脚本查询真实修订版，空白板也适用。查询前关闭占用串口的 Pet Manager；macOS 的端口通常是 <code>/dev/cu.usbserial-…</code> 或 <code>/dev/cu.usbmodem…</code>，Windows 在设备管理器查看 <code>COM</code> 编号。</li><li>芯片旧版 0.1～1.99 对应 <code>v1</code> 包；芯片 3.0～3.99 对应 <code>v3</code> 包。记录查询输出后，再打开 <a href="https://github.com/YizhengWw/HachimoDock/releases/latest" target="_blank" rel="noopener noreferrer">最新 Release</a> 下载匹配的完整烧录包。</li></ol>
+          <p>已安装的新固件会向客户端报告 <code>chipRevision</code>，用于自动选择升级镜像；当前设备诊断弹窗没有直接显示这个字段。要查看确切版本，仍用下面的串口查询。</p>
+          <p>准备 Python 3.10+，在独立 Python 环境安装项目指定的 esptool 5.4.0。从仓库根目录运行已附带的 <a href="firmware/tools/chip_revision/check_p4_revision.py">只读查询脚本</a>，把示例端口换成自己的。脚本不擦除或写入 Flash。</p>
+          <pre class="command">python -m pip install esptool==5.4.0
+<span class="muted"># macOS 示例</span>
+python firmware/tools/chip_revision/check_p4_revision.py --port /dev/cu.usbserial-0001
+<span class="muted"># Windows PowerShell 示例</span>
+python firmware/tools/chip_revision/check_p4_revision.py --port COM3</pre>
+          <div class="caution">“ESP32-P4-WIFI6-M”里的 <b>M</b> 不表示 v3。版本不明时先停在此步确认，不能互刷，也不要使用 <code>--force</code> 绕过检查。</div>
+          <label class="check"><input type="checkbox" data-step="2"><span>验收：纸面上写得出芯片修订版，并能说明自己该选 v1 还是 v3 包。</span></label>
+          <div class="source">依据：<a href="firmware/tools/chip_revision/check_p4_revision.py">只读查询脚本</a><a href="firmware/tools/flash_checked.py">烧录前芯片检查源码</a><a href="firmware/protocol.md">设备诊断协议</a><a href="firmware/BUILD.md">固件构建与烧录</a><a href="latest-release.json">发布清单</a></div>
+        </div></section>
+
+        <section class="step" id="step-3" aria-labelledby="title-3"><div class="step-header"><div class="step-number">03</div><div class="step-title"><h3 id="title-3">按发布包指南烧录并首启</h3><p>新设备使用完整出厂镜像；已有设备日常升级使用客户端。</p></div></div><div class="step-body">
+          <ol><li>解压第 2 步下载的完整烧录 ZIP，先读包内中文烧录指南。</li><li>确认设备是新机或明确需要恢复出厂，再按包内工具步骤连接 USB、核对芯片并烧录。</li><li>等待烧录完成和设备重启，检查屏幕是否亮起、默认形象是否播放。</li></ol>
+          <p>包内脚本需要 Python 3.10+，会安装并检查 esptool 5.4.0。完整镜像包含 Bootloader、应用、默认形象和组件；单独的 <code>firmware.bin</code> 不是完整出厂镜像。</p>
+          <div class="caution">完整出厂烧录会覆盖设备已有设置、形象和组件。先备份现有设备数据；烧录中不要拔线。版本不符时不要继续。</div>
+          <label class="check"><input type="checkbox" data-step="3"><span>验收：工具报告成功，设备重启后屏幕显示出厂形象。</span></label>
+          <div class="source">依据：<a href="firmware/BUILD.md">固件构建与烧录</a><a href="firmware/README.md">固件说明</a></div>
+        </div></section>
+
+        <section class="step" id="step-4" aria-labelledby="title-4"><div class="step-header"><div class="step-number">04</div><div class="step-title"><h3 id="title-4">安装 Pet Manager 并完成一次联调</h3><p>先验证 USB 连接、状态气泡和实体输入，再尝试语音或生成服务。</p></div></div><div class="step-body">
+          <ol><li>在同一 <a href="https://github.com/YizhengWw/HachimoDock/releases/latest" target="_blank" rel="noopener noreferrer">Release</a> 下载 macOS Apple silicon DMG 或 Windows x64 安装包，安装并打开 Pet Manager。</li><li>通过 USB 数据线连接设备，确认首页出现 ESP32-P4 设备、固件版本和连接状态。</li><li>启动一个受支持的 Agent（例如 Codex 或 Claude），开启实际任务，观察设备的宠物状态与 Session 气泡变化；再试一个按键操作。</li><li>需要语音识别、实时对话或形象生成时，才到客户端“API 配置”填写自己的服务凭据。</li></ol>
+          <p>设备状态同步走 USB；PC 客户端需要保持运行。部分 Agent 的桌面会话切换能力有平台限制，先以状态显示成功作为首个里程碑。</p>
+          <label class="check"><input type="checkbox" data-step="4"><span>验收：客户端认出设备，设备随一个真实 Agent 任务改变状态。</span></label>
+          <div class="source">依据：<a href="README.md#快速开始">快速开始</a><a href="pc/docs/agent-integration-audit.md">Agent 接入说明</a><a href="SECURITY.md">安全说明</a></div>
+        </div></section>
+
+        <div class="sep"></div><div class="stage-heading"><span>第二阶段</span><h2>再学会自己修改</h2></div>
+        <p class="stage-intro">这部分面向想读代码、修改界面或构建固件的人。每一步都能独立验收；网页预览不具备设备与本机 Agent 能力。</p>
+
+        <section class="step" id="step-5" aria-labelledby="title-5"><div class="step-header"><div class="step-number">05</div><div class="step-title"><h3 id="title-5">从源码跑起网页界面</h3><p>先熟悉 React 界面，构建成功后再碰原生依赖。</p></div></div><div class="step-body">
+          <p>准备 Git LFS 和 Node.js 22+。在仓库根目录打开终端：</p>
+          <pre class="command"><span class="muted"># 仓库根目录</span>
+git lfs pull
+cd pc
+npm ci
+npm test
+npm run test:bridge
+npm run build:web
+npm run dev:web</pre>
+          <p>终端显示本地地址后在浏览器打开。这里能看界面、改 CSS 和 React；设备、系统权限与本机 Agent 功能必须在第 6 步的完整客户端中验证。</p>
+          <div class="filemap"><a href="pc/src/main.jsx"><b>pc/src/main.jsx</b><small>React 挂载入口</small></a><a href="pc/src/App.jsx"><b>pc/src/App.jsx</b><small>页面组合入口</small></a><a href="pc/src/DeviceDashboard.jsx"><b>pc/src/DeviceDashboard.jsx</b><small>设备首页</small></a><a href="pc/src/styles.css"><b>pc/src/styles.css</b><small>界面样式</small></a></div>
+          <label class="check"><input type="checkbox" data-step="5"><span>验收：测试和网页构建通过，浏览器能打开本地界面。</span></label>
+          <div class="source">依据：<a href="pc/README.md">PC 开发说明</a><a href="pc/package.json">实际 npm 脚本</a></div>
+        </div></section>
+
+        <section class="step" id="step-6" aria-labelledby="title-6"><div class="step-header"><div class="step-number">06</div><div class="step-title"><h3 id="title-6">运行完整 Tauri 客户端</h3><p>把网页界面和 Rust、Bridge、USB 串起来。</p></div></div><div class="step-body">
+          <p>另需 Rust stable、目标系统的 Tauri 依赖，以及项目要求的可重定位 Node.js 与 FFmpeg 资源。先按 <a href="pc/docs/runtime-dependencies.md">运行时依赖文档</a>准备，再在 <code>pc</code> 目录执行：</p>
+          <pre class="command">npm run prepare:desktop
+<span class="muted"># macOS zsh：开发时显式允许本地网页来源</span>
+PET_MANAGER_ALLOW_DEV_ORIGIN=1 npm run dev</pre>
+          <p>Windows PowerShell 的环境变量写法见 <a href="pc/README.md">PC 开发说明</a>。运行后连接设备，重复第 4 步的 USB 与 Agent 状态验证。</p>
+          <div class="filemap"><a href="pc/src-tauri/src/lib.rs"><b>pc/src-tauri/src/lib.rs</b><small>Tauri 命令与本机服务</small></a><a href="pc/src-tauri/src/usb_serial.rs"><b>pc/src-tauri/src/usb_serial.rs</b><small>USB 串口模块</small></a><a href="pc/src-tauri/bridge/packages/agent-session-bus/src/index.js"><b>Agent Session Bus</b><small>Agent 适配器入口</small></a><a href="pc/src/dashboard/useP4SessionSync.js"><b>useP4SessionSync.js</b><small>设备 Session 下发</small></a></div>
+          <label class="check"><input type="checkbox" data-step="6"><span>验收：原生窗口启动，能识别设备，并能看到一次 Agent 状态同步。</span></label>
+          <div class="source">依据：<a href="pc/README.md">PC 开发说明</a><a href="pc/docs/runtime-dependencies.md">运行时依赖</a></div>
+        </div></section>
+
+        <section class="step" id="step-7" aria-labelledby="title-7"><div class="step-header"><div class="step-number">07</div><div class="step-title"><h3 id="title-7">构建对应芯片的固件</h3><p>先跑主机测试，再编译；编译成功不等于真机全部验收。</p></div></div><div class="step-body">
+          <p>准备 Python 3.10+、Git LFS，并在独立 Python 环境安装 PlatformIO Core 6.1.19、pytest、Pillow。首次构建会下载 ESP-IDF 与工具链。</p>
+          <pre class="command"><span class="muted"># 仓库根目录；安装依赖前请先激活独立 Python 环境</span>
+python -m pip install platformio==6.1.19 pytest Pillow
+git lfs pull
+python firmware/tools/build_builtin_bundle.py --check
+python -m pytest firmware/tests
+cd firmware
+<span class="muted"># 按第 2 步确认的芯片，只选对应环境</span>
+python -m platformio run -e esp32_p4_evboard
+<span class="muted"># v3 芯片改用：python -m platformio run -e esp32_p4_evboard_v3</span></pre>
+          <p>v1 环境使用 ESP-IDF 5.5.1，v3 使用 5.5.4；两个环境要顺序构建。需要制作完整出厂包时，再按 <a href="firmware/BUILD.md">构建指南</a>的 factory 章节执行，不能把仅应用分区镜像当出厂镜像。</p>
+          <div class="filemap"><a href="firmware/main/pet_p4_main.c"><b>pet_p4_main.c</b><small>设备初始化与任务入口</small></a><a href="firmware/main/pet_p4_protocol.c"><b>pet_p4_protocol.c</b><small>设备消息处理</small></a><a href="firmware/main/pet_p4_renderer.c"><b>pet_p4_renderer.c</b><small>画面渲染</small></a><a href="firmware/main/pet_p4_input.c"><b>pet_p4_input.c</b><small>按键与摇杆输入</small></a></div>
+          <label class="check"><input type="checkbox" data-step="7"><span>验收：主机测试通过，匹配芯片的 PlatformIO 环境成功生成应用固件。</span></label>
+          <div class="source">依据：<a href="firmware/BUILD.md">固件构建与烧录</a><a href="firmware/README.md">固件说明</a></div>
+        </div></section>
+
+        <section class="step" id="step-8" aria-labelledby="title-8"><div class="step-header"><div class="step-number">08</div><div class="step-title"><h3 id="title-8">做一个可验证的小改动</h3><p>建议从界面文案或样式入手，再逐步进入协议和固件。</p></div></div><div class="step-body">
+          <ol><li>在 <a href="pc/src/DeviceDashboard.jsx">DeviceDashboard.jsx</a> 或相关组件中找到一个想改善的提示文案，先记录原文与预期。</li><li>只改这一处，并按仓库规范给新增或实质修改的代码结构写中文注释；若涉及公开行为，同步检查文档。</li><li>运行 <code>npm test</code> 和 <code>npm run build:web</code>，再用第 5 步网页预览；涉及 USB 或 Agent 行为时，还要用第 6 步原生客户端验证。</li><li>读懂一条实际状态链路后，再考虑改协议：Agent 适配器 → Session 同步 → Tauri/USB → <a href="firmware/protocol.md">设备协议</a> → 固件渲染。</li></ol>
+          <div class="caution">第一次修改不要同时碰硬件引脚、分区表、OTA 与 USB 协议。它们横跨 PC 和固件，验证成本明显更高。</div>
+          <label class="check"><input type="checkbox" data-step="8"><span>验收：能指出改动文件、看到实际效果，并说明测试结果。</span></label>
+          <div class="source">依据：<a href="pc/src/DeviceDashboard.jsx">设备首页源码</a><a href="pc/src/dashboard/useAgentSessionFeed.js">Session Feed</a><a href="firmware/protocol.md">USB 协议</a></div>
+        </div></section>
+
+        <section class="end"><h2>完成后你应当能回答</h2><p>我使用哪一版芯片？完整镜像和日常 OTA 有什么区别？网页预览与原生客户端差在哪里？Agent 状态从哪里进入，又在哪里显示？</p><p>如果其中一个环节失败，先回到对应步骤的“验收”与“依据”，只排查这一段链路。</p><a href="#top" id="back-top">返回顶部 ↑</a></section>
+      </div>
+    </div>
+    <footer class="footer">依据仓库内 README、pc/README、firmware/BUILD、firmware/protocol 与 latest-release.json 编写。版本会变化；实际下载、镜像校验和硬件资料以对应 Release 与官方资料为准。</footer>
+  </main>
+  <script>
+    // 使用当前文件独有的键保存勾选状态，避免不同教程互相覆盖。
+    const storageKey = "hachimodock-implementation-guide-v1";
+    const checks = Array.from(document.querySelectorAll('input[data-step]'));
+    const progressBar = document.getElementById("progress-bar");
+    const progressFill = document.getElementById("progress-fill");
+    const progressLabel = document.getElementById("progress-label");
+
+    // 从浏览器本地恢复进度；无痕模式禁用存储时仍允许正常阅读和勾选。
+    function restoreProgress() {
+      let saved = [];
+      try { saved = JSON.parse(localStorage.getItem(storageKey) || "[]"); } catch (_) { saved = []; }
+      if (!Array.isArray(saved)) saved = [];
+      checks.forEach((check) => { check.checked = saved.includes(check.dataset.step); });
+      updateProgress();
+    }
+
+    // 同步进度条、数字与步骤外观，并把当前选择留在本机浏览器。
+    function updateProgress() {
+      const completed = checks.filter((check) => check.checked).map((check) => check.dataset.step);
+      checks.forEach((check) => { check.closest(".step").classList.toggle("done", check.checked); });
+      progressBar.setAttribute("aria-valuenow", String(completed.length));
+      progressFill.style.width = `${completed.length / checks.length * 100}%`;
+      progressLabel.textContent = `已完成 ${completed.length} / ${checks.length} 步`;
+      try { localStorage.setItem(storageKey, JSON.stringify(completed)); } catch (_) { /* 本地存储不可用时仅保留本页状态。 */ }
+    }
+
+    checks.forEach((check) => check.addEventListener("change", updateProgress));
+    restoreProgress();
+  </script>
+</body>
+</html>
