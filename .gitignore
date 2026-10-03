@@ -34,6 +34,7 @@ bundle-secrets.env
 .internal-build-*.json
 .claude/
 .codex/
+.agent/
 .dev-logs/
 .tooling/
 firmware/sdkconfig.*
