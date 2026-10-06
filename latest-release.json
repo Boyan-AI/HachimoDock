@@ -1,80 +1,95 @@
 {
   "schemaVersion": 1,
   "product": "HachimoDock Pet Manager",
-  "desktopVersion": "0.1.101",
-  "firmwareVersion": "0.7.72-p4",
-  "sourceCommit": "21f9fac608e6d8a66cd8fe0d8e824161d30aec95",
-  "firmwareBuildId": "0.7.72-p4+542b33d5a6a4",
-  "firmwareSourceCommit": "542b33d5a6a49355c63f4571e74fd301b36b5b6c",
-  "firmwareBuildProvenance": "Firmware build IDs identify the committed source snapshots. Between the v1 and v3 snapshots only a desktop Rust regression test changed. Later commits package binaries and release metadata.",
+  "repository": "Boyan-AI/HachimoDock",
+  "releaseTag": "v0.1.102-rc.1",
+  "prerelease": true,
+  "desktopVersion": "0.1.102-rc.1",
+  "desktopBuildId": "0.1.102-rc.1+9c8b94929752",
+  "firmwareVersion": "0.7.73-p4-rc.1",
+  "sourceCommit": "9c8b9492975276d6cec87ea90fffc5dc7854614a",
+  "firmwareBuildId": "0.7.73-p4-rc.1+79c9f634ee11",
+  "firmwareSourceCommit": "79c9f634ee111f1e91c94257399fe0df025d621b",
+  "firmwareBuildProvenance": "Firmware was built from the clean version/source snapshot 79c9f63. Desktop was built from clean snapshot 9c8b949, which only packages the two firmware images. Later commits update release metadata; artifact build IDs retain their actual source snapshots.",
   "publicSourceIncluded": true,
   "embeddedInternalCredentials": false,
   "embeddedEnterpriseCa": false,
   "embeddedFixedProxy": false,
-  "flashingTools": {
-    "python": "3.10+",
-    "esptool": "5.4.0"
+  "buildEnvironment": {
+    "python": "3.12.15",
+    "platformioCore": "6.1.19",
+    "v1EspIdf": "5.5.1.250929",
+    "v3EspIdf": "5.5.4",
+    "desktopTarget": "macOS-arm64"
   },
   "firmwareVariants": [
     {
       "chipFamily": "v1",
       "chipRevisionMin": 1,
       "chipRevisionMax": 199,
-      "buildId": "0.7.72-p4+542b33d5a6a4",
-      "sourceCommit": "542b33d5a6a49355c63f4571e74fd301b36b5b6c",
-      "hardwareValidation": "preserving-data-ota-and-valid-boot-passed; complete-runtime-acceptance-pending",
-      "sha256": "18da63994fa48c20b49063ca9d9340b601df6147ba816a6aa73b24184caf70c6"
+      "version": "0.7.73-p4-rc.1",
+      "buildId": "0.7.73-p4-rc.1+79c9f634ee11",
+      "sourceCommit": "79c9f634ee111f1e91c94257399fe0df025d621b",
+      "sha256": "116252c92a6ded58a144c22be1f0c45333be63bc56a9f2d5bd21686995f969c6",
+      "file": "HachimoDock-P4-v1_0.7.73-p4-rc.1_OTA.bin",
+      "hardwareValidation": "build-and-host-regressions-passed; physical-v1-runtime-not-tested-this-release"
     },
     {
       "chipFamily": "v3",
       "chipRevisionMin": 300,
       "chipRevisionMax": 399,
-      "buildId": "0.7.72-p4+f40980406b3b",
-      "sourceCommit": "f40980406b3b41e9584a0f770a1c6884117f194d",
-      "hardwareValidation": "build-and-host-regressions-passed; physical-v3-runtime-not-tested-this-release",
-      "sha256": "2d788b729e0be9707e45180c058fcf8c884ac1ac48ab1f50c29e3595ae3ae2d2"
+      "version": "0.7.73-p4-rc.1",
+      "buildId": "0.7.73-p4-rc.1+79c9f634ee11",
+      "sourceCommit": "79c9f634ee111f1e91c94257399fe0df025d621b",
+      "sha256": "64c3018e90e5b0c282abfa9cc0809ff6dd50b4646d0b8873cafc4eba0a8a0413",
+      "file": "HachimoDock-P4-v3_0.7.73-p4-rc.1_OTA.bin",
+      "hardwareValidation": "preserving-data-ota-valid-boot-and-ready-state-duplex-echo-probe-passed; early-startup-capability-probe-failed-before-AEC-ready"
     }
   ],
   "validation": {
     "frontendPassed": 660,
     "frontendSkipped": 1,
     "bridgePassed": 202,
-    "firmwareHostPassed": 159,
+    "firmwareHostPassed": 150,
+    "firmwareHostSkipped": 9,
     "firmwareSubtestsPassed": 5,
-    "rustPassed": 451,
+    "rustPassed": 452,
     "rustIgnored": 27,
-    "preservingDataOtaPassed": 1,
-    "publicSourceSecretScan": true,
-    "installerPayloadScan": true,
+    "publicSourcePublicationGate": true,
+    "publicBuildCredentialGate": true,
+    "knownCredentialPatternHitsInDesktopExecutable": 0,
+    "releaseCspPassed": true,
     "macOSSigning": "local-ad-hoc-not-notarized",
-    "windowsRuntimeTestThisBuild": false
+    "dmgReadOnlyMountSignatureVerification": true,
+    "windowsRuntimeTestThisBuild": false,
+    "factoryPackageThisRelease": false,
+    "installedDesktopBuildIdVerifiedInUI": "0.1.102-rc.1+9c8b94929752",
+    "installedDesktopExecutableSha256": "2d9364371a8dc8ef55ca60ced07b73818cf70795e928c8dd896b48d1777bb67c",
+    "installedDeviceBuildIdVerifiedInUI": "0.7.73-p4-rc.1+79c9f634ee11",
+    "installedDevicePartition": "ota_1",
+    "installedDeviceImageState": "valid",
+    "v3EchoProbe": {
+      "readyStatePassed": true,
+      "framesBeforePlayback": 155,
+      "framesDuringPlayback": 200,
+      "framesAfterPlayback": 342,
+      "playbackCompleted": true,
+      "aecFaults": 0,
+      "productionVadFalseStarts": 0,
+      "maxDspMs": 7.7
+    },
+    "earlyColdBootCapabilityProbePassed": false,
+    "earlyColdBootCapabilityProbeNote": "Probe reconnected and asserted hello capabilities while AEC/NS initialization was still running. Same firmware passed without another reboot after initialization became ready.",
+    "nearEndAsr": "prior-v3-candidate-with-same-AEC-code-passed-complete-fixed-phrase; no-extra-cloud-calls-for-release",
+    "humanDoubleTalkValidated": false,
+    "longDurationAcousticValidated": false
   },
   "artifacts": [
     {
-      "role": "mac",
-      "file": "HachimoDock-Pet-Manager_0.1.101_macOS-arm64.dmg",
-      "bytes": 105313725,
-      "sha256": "9d28fbf3fc09985ce92082be2324fda79a0012500267e04cbb6d1e5fe6fd0df4"
-    },
-    {
-      "role": "windows",
-      "file": "HachimoDock-Pet-Manager_0.1.101_Windows-x64-setup.exe",
-      "bytes": 91685698,
-      "sha256": "36dcabaa3e7a107be4c4d0ed59564aafa4a8c62ca320b4023412fb603142a1f0"
-    },
-    {
-      "role": "factoryPackage",
-      "file": "HachimoDock-P4-v1_0.7.72-p4_Factory-Flasher.zip",
-      "bytes": 20024916,
-      "sha256": "9fc01f363e62f3945cb31f4c6b8c5490fc0347227bd6097e27c35ea7440e8ae3",
-      "chipFamily": "v1"
-    },
-    {
-      "role": "factoryPackage",
-      "file": "HachimoDock-P4-v3_0.7.72-p4_Factory-Flasher.zip",
-      "bytes": 20044506,
-      "sha256": "11765a9d05ec68fc4be12c4af9119c710fc08d22223e665ad21d4f25a6105859",
-      "chipFamily": "v3"
+      "role": "license",
+      "file": "Espressif-ESP-SR-LICENSE.txt",
+      "bytes": 1188,
+      "sha256": "923e6274ea64b226c4f0cb9fc29bda915ae343fd6a8fc290ff5e0daaa85f8813"
     },
     {
       "role": "ffmpegSource",
@@ -83,10 +98,36 @@
       "sha256": "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c"
     },
     {
+      "role": "otaImage",
+      "file": "HachimoDock-P4-v1_0.7.73-p4-rc.1_OTA.bin",
+      "bytes": 2545648,
+      "sha256": "116252c92a6ded58a144c22be1f0c45333be63bc56a9f2d5bd21686995f969c6",
+      "chipFamily": "v1"
+    },
+    {
+      "role": "otaImage",
+      "file": "HachimoDock-P4-v3_0.7.73-p4-rc.1_OTA.bin",
+      "bytes": 2561120,
+      "sha256": "64c3018e90e5b0c282abfa9cc0809ff6dd50b4646d0b8873cafc4eba0a8a0413",
+      "chipFamily": "v3"
+    },
+    {
+      "role": "mac",
+      "file": "HachimoDock-Pet-Manager_0.1.102-rc.1_macOS-arm64.dmg",
+      "bytes": 105322756,
+      "sha256": "12b3f86431830e3ce2eb1fae96345cd13aa60b817f859dedf588a9695c418020"
+    },
+    {
       "role": "license",
       "file": "LICENSE",
       "bytes": 7607,
       "sha256": "f410049813a24b574b39af6dd4807c3e0a0432fe41081b768ef3fae4e0f1fd3a"
+    },
+    {
+      "role": "releaseNotes",
+      "file": "RELEASE-NOTES.md",
+      "bytes": 2527,
+      "sha256": "ace4f5e482f5e6ac87e365bc1fb548ba0df514c0536fca176bc81c6449575bc1"
     },
     {
       "role": "third-party-notices",
@@ -99,12 +140,6 @@
       "file": "Xiaomi-Miloco-LICENSE.md",
       "bytes": 6009,
       "sha256": "376dd562aa127c36a75f39887b1a1cd7c47859f21f097e8a8f1b7bab0ea79a27"
-    },
-    {
-      "role": "license",
-      "file": "Espressif-ESP-SR-LICENSE.txt",
-      "bytes": 1188,
-      "sha256": "923e6274ea64b226c4f0cb9fc29bda915ae343fd6a8fc290ff5e0daaa85f8813"
     },
     {
       "role": "license",
