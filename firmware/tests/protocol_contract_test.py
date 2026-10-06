@@ -1614,9 +1614,9 @@ def test_p4_15fps_h264_assets_use_rgb565_and_ppa_render_scheduler():
 
 
 def test_p4_rgb565_output_uses_matching_rgb_panel_order():
+    """检查面板与渲染器颜色顺序，契约不依赖具体发布版本。"""
     renderer = read("main/pet_p4_renderer.c")
     bsp = read("components/esp32_p4_wifi6_touch_lcd_4_3/esp32_p4_wifi6_touch_lcd_4_3.c")
-    project = read("CMakeLists.txt")
     component_center = renderer[
         renderer.index("static void render_component_center_page"):
         renderer.index("static void draw_text_right", renderer.index("static void render_component_center_page"))
@@ -1631,7 +1631,6 @@ def test_p4_rgb565_output_uses_matching_rgb_panel_order():
     assert "rgb565(255, 110, 0)" in component_center
     assert "rgb565(31, 163, 255)" not in component_center
     assert "Pre-swap red/blue" not in renderer
-    assert 'set(PROJECT_VER "0.7.72-p4")' in project
 
 
 def test_p4_renderer_keeps_screen_visible_when_assets_are_unusable():
@@ -1700,6 +1699,7 @@ def test_p4_flash_layout_allocates_dual_10m_appearance_slots_on_32m_flash():
 
 
 def test_p4_ab_firmware_ota_is_verified_acknowledged_and_exposed_by_pc():
+    """检查 OTA 校验及桌面入口，并确保两个构建入口使用同一有效版本。"""
     cmake = read("main/CMakeLists.txt")
     project = read("CMakeLists.txt")
     ota = read_required("main/pet_p4_ota.c")
@@ -1713,7 +1713,13 @@ def test_p4_ab_firmware_ota_is_verified_acknowledged_and_exposed_by_pc():
     tauri_config = read_workspace("pc/src-tauri/tauri.conf.json")
     resource_preflight = read_workspace("pc/scripts/prepare-desktop-resources.mjs")
 
-    assert 'set(PROJECT_VER "0.7.72-p4")' in project
+    version = re.search(r'set\(PROJECT_VER "([^"]+)"\)', project)
+    assert version is not None
+    assert re.fullmatch(r"\d+\.\d+\.\d+-p4(?:-rc\.\d+)?", version.group(1))
+    platformio = read("platformio.ini")
+    primary_env = platformio.split("[env:esp32_p4_evboard]", 1)[1].split("[env:", 1)[0]
+    configured = re.search(r"^custom_p4_project_version\s*=\s*(\S+)\s*$", primary_env, re.M)
+    assert configured is not None and configured.group(1) == version.group(1)
     assert "esp_app_get_description()" in protocol
     assert "PET_P4_FW_VERSION" not in protocol
     assert '"pet_p4_ota.c"' in cmake
