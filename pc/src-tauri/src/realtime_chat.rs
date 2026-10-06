@@ -160,6 +160,20 @@ fn active_slot() -> &'static Mutex<Option<Arc<Session>>> {
     SLOT.get_or_init(|| Mutex::new(None))
 }
 
+/// 记录当前连接设备的 AEC 故障，供后续会话安全降级使用。
+fn aec_failed_board() -> &'static Mutex<Option<String>> {
+    static BOARD: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+    BOARD.get_or_init(|| Mutex::new(None))
+}
+
+/// 按握手能力和本次运行中的故障记录选择双向收音。
+fn duplex_available(capabilities: &Value, board: &str, failed_board: Option<&str>) -> bool {
+    failed_board != Some(board)
+        && ["audioAec", "audioVad", "audioFullDuplex"]
+            .iter()
+            .all(|key| capabilities["features"][*key] == true)
+}
+
 fn active_session() -> Option<Arc<Session>> {
     active_slot().lock().ok().and_then(|slot| slot.clone())
         .filter(|session| session.status.lock().map(|s| s.active).unwrap_or(false))
@@ -214,6 +228,10 @@ fn user_caption(usb: &UsbSerialManager, board: &str, id: &str, name: &str, text:
 /// Called from the USB message dispatcher: consume `audio/*` topics while a session is live.
 /// Returns true when the message belongs to realtime chat (so push-to-talk logic must skip it).
 pub fn route_device_audio(topic: &str, payload: &Value) -> bool {
+    if topic == "audio/status" && payload["audioAec"] == true {
+        // 设备重启或恢复后，以实时状态解除之前的保守降级。
+        if let Ok(mut failed) = aec_failed_board().lock() { *failed = None; }
+    }
     if topic == "audio/diagnostic" {
         if payload.get("event").and_then(Value::as_str) == Some("playback_completed") {
             if let (Some(session), Some(id)) = (active_session(), payload.get("sessionId").and_then(Value::as_str)) {
@@ -255,7 +273,8 @@ pub fn route_device_audio(topic: &str, payload: &Value) -> bool {
         return topic.starts_with("audio/");
     }
     if topic == "audio/status" && session.duplex.load(Ordering::SeqCst) && payload["audioAec"] == false {
-        if let Ok(mut s) = session.status.lock() {s.error="设备回声消除不可用，已停止双向对话，请重新进入或检查固件".into();}
+        if let Ok(mut failed) = aec_failed_board().lock() { *failed = Some(session.board_device_id.clone()); }
+        if let Ok(mut s) = session.status.lock() {s.error="设备回声消除不可用，已停止双向对话；重新进入将改用轮流对话".into();}
         request_stop(&session,"aec_unavailable");
         return true;
     }
@@ -264,8 +283,9 @@ pub fn route_device_audio(topic: &str, payload: &Value) -> bool {
         let duplex = session.duplex.load(Ordering::SeqCst);
         if duplex && !processed {
             // Never route raw speaker echo into ASR/tool calls after an AFE failure.
+            if let Ok(mut failed) = aec_failed_board().lock() { *failed = Some(session.board_device_id.clone()); }
             diagnostics::record(&session.id, "aec_fallback", json!({"ok":false}));
-            if let Ok(mut s) = session.status.lock() {s.error="设备回声消除不可用，已停止双向对话，请重新进入或检查固件".into();}
+            if let Ok(mut s) = session.status.lock() {s.error="设备回声消除不可用，已停止双向对话；重新进入将改用轮流对话".into();}
             request_stop(&session, "aec_unavailable");
             return true;
         }
@@ -366,11 +386,12 @@ pub fn start(app: &AppHandle, input: RealtimeChatStartInput) -> Result<RealtimeC
 
     let (tx, rx) = mpsc::channel(128);
     let session_id = format!("rtc-{}", now_ms());
+    let failed_board = aec_failed_board().lock().ok().and_then(|failed| failed.clone());
     let session = Arc::new(Session {
         id: session_id.clone(),
         board_device_id: board.clone(),
         cancelled: AtomicBool::new(false),
-        duplex: AtomicBool::new(["audioAec","audioVad","audioFullDuplex"].iter().all(|key| usb_status.capabilities["features"][*key] == true)),
+        duplex: AtomicBool::new(duplex_available(&usb_status.capabilities, &board, failed_board.as_deref())),
         stop_notify: tokio::sync::Notify::new(),
         input: tx,
         completed_playback: Mutex::new(String::new()),
@@ -1561,6 +1582,16 @@ mod tests {
     }
     use super::*;
 
+    /// 验证 AEC 故障后只对同一设备禁用双向收音。
+    #[test]
+    fn aec_fault_downgrades_next_session_for_same_board() {
+        let capabilities = json!({"features":{"audioAec":true,"audioVad":true,"audioFullDuplex":true}});
+        assert!(duplex_available(&capabilities, "p4-a", None));
+        assert!(!duplex_available(&capabilities, "p4-a", Some("p4-a")));
+        assert!(duplex_available(&capabilities, "p4-b", Some("p4-a")));
+        assert!(!duplex_available(&json!({"features":{"audioAec":false}}), "p4-a", None));
+    }
+
     fn fake_barge_probe(frames: Vec<Vec<u8>>, texts: &[&str], keep_events_open: bool) -> (VerifiedSpeech, impl Sized) {
         let (recognizer, sink) = StreamingSpeechRecognizer::test_sink();
         let (tx, events) = mpsc::unbounded_channel();
@@ -2266,6 +2297,7 @@ mod tests {
 
     #[test]
     #[ignore = "exclusive P4 port; plays supplied test WAV and measures processed microphone metadata only"]
+    /// 在独占设备串口时验证采集与播放期间的回声消除能力。
     fn live_device_duplex_echo_probe() {
         let wav=std::fs::read(std::env::var("P4_TEST_WAV").unwrap()).unwrap();
         assert_eq!(&wav[..4], b"RIFF"); assert_eq!(&wav[8..12], b"WAVE");
@@ -2284,9 +2316,27 @@ mod tests {
         assert!((1..=2).contains(&repeats));
         let pcm=pcm.repeat(repeats); assert!(pcm.len()<=32_000*40);
         let usb=UsbSerialManager::new(); let (tx,events)=std_mpsc::channel();
-        usb.connect(&std::env::var("P4_SERIAL_PORT").unwrap(),move |topic,payload|{let _=tx.send((topic,payload));}).unwrap();
+        let port=std::env::var("P4_SERIAL_PORT").unwrap();
+        let initial_tx=tx.clone();
+        usb.connect(&port,move |topic,payload|{let _=initial_tx.send((topic,payload));}).unwrap();
         let board=usb.status().board_device_id;
         assert_eq!(board,std::env::var("P4_EXPECTED_BOARD_ID").unwrap());
+        if std::env::var("P4_ECHO_REBOOT_FIRST").as_deref()==Ok("1") {
+            // AEC 运行故障会保持禁用状态；重启后再测才能区分启动与播放故障。
+            println!("echo probe reboot response={}",usb.reboot_device(&board).unwrap());
+            std::thread::sleep(Duration::from_secs(2));
+            usb.disconnect();
+            let mut reconnected=false;
+            for _ in 0..10 {
+                let reconnect_tx=tx.clone();
+                if usb.connect(&port,move |topic,payload|{let _=reconnect_tx.send((topic,payload));}).is_ok() {
+                    reconnected=true; break;
+                }
+                std::thread::sleep(Duration::from_secs(1));
+            }
+            assert!(reconnected,"device did not reconnect after reboot");
+            assert_eq!(usb.status().board_device_id,board);
+        }
         let caps=usb.status().capabilities;
         println!("duplex capabilities aec={} vad={} duplex={}",caps["features"]["audioAec"],caps["features"]["audioVad"],caps["features"]["audioFullDuplex"]);
         assert!(["audioAec","audioVad","audioFullDuplex"].iter().all(|k|caps["features"][*k]==true));
