@@ -2075,6 +2075,7 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     #[ignore = "exclusive P4 port; Mac speaker emits synthetic speech into the real device microphone; cloud ASR only"]
+    /// 用固定合成短句验证真实麦克风、AEC、VAD 和云识别，完整句匹配防止漏掉句首。
     fn live_device_near_end_asr() {
         let dir = std::path::PathBuf::from(std::env::var("PET_REALTIME_SETTINGS_DIR").unwrap());
         voice_chat_settings::configure_storage_dir(dir.clone()).unwrap();
@@ -2161,7 +2162,11 @@ mod tests {
         println!("near-end physical capture: frames={frames} hint_frames={hints} peak_rms={peak:.1} ended={ended}");
         assert!(ended,"external test speech did not produce a complete utterance; inspect physical output route/level and VAD metrics");
         let text=tauri::async_runtime::block_on(await_final_text(&mut asr_events,String::new())).unwrap();
-        println!("near-end ASR chars={} expected_phrase={}",text.chars().count(),text.contains("你是谁"));
+        // 只忽略标点和空白；结果不写入日志，且不能仅凭尾部关键词判定通过。
+        let normalized = |s: &str| s.chars().filter(|c| c.is_alphanumeric()).collect::<String>();
+        let expected = "你好请告诉我你是谁";
+        let full_phrase = normalized(&text) == expected;
+        println!("near-end ASR chars={} expected_phrase={} full_phrase={full_phrase}",text.chars().count(),text.contains("你是谁"));
         if compare_cache {
             let short = tauri::async_runtime::block_on(async {
                 let (tx,mut rx)=mpsc::unbounded_channel();
@@ -2173,13 +2178,11 @@ mod tests {
                 rec.finish().unwrap();
                 await_final_text(&mut rx,String::new()).await.unwrap()
             });
-            let normalized = |s: &str| s.chars().filter(|c| c.is_alphanumeric()).collect::<String>();
-            let expected = "你好请告诉我你是谁";
             println!("cache paired same capture: ms=300 chars={} exact={} keyword={}; ms=600 chars={} exact={} keyword={}",
                 short.chars().count(),normalized(&short)==expected,short.contains("你是谁"),
                 text.chars().count(),normalized(&text)==expected,text.contains("你是谁"));
         }
-        assert!(text.contains("你是谁"),"captured speech did not retain the expected synthetic phrase");
+        assert!(full_phrase,"captured speech did not retain the complete synthetic phrase");
         drop(rec);
     }
 

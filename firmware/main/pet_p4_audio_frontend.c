@@ -1,4 +1,5 @@
 #include "pet_p4_audio_frontend.h"
+#include "sdkconfig.h"
 #include <stdatomic.h>
 #include <math.h>
 #include <string.h>
@@ -29,6 +30,9 @@ static StaticQueue_t output_control;
 static uint8_t *output_storage;
 static atomic_bool ready;
 static atomic_uint generation;
+static atomic_uint last_feed_ms;
+static atomic_uint last_feed_start_ms;
+static atomic_bool feed_in_progress;
 static portMUX_TYPE ref_lock = portMUX_INITIALIZER_UNLOCKED;
 static int16_t *reference;
 static size_t ref_head, ref_tail, ref_count;
@@ -86,9 +90,11 @@ void pet_p4_afe_reference_abort(void) {
   ref_head = ref_tail = ref_count = 0; ref_last_us = 0;
   portEXIT_CRITICAL(&ref_lock);
 }
+/* 记录送往扬声器的参考音频；溢出时报告积压量和麦克风处理停顿时间。 */
 void pet_p4_afe_reference(const int16_t *pcm, size_t samples) {
   if (!pet_p4_afe_ready() || !pcm || samples > FRAME) return;
   uint64_t now = esp_timer_get_time(); bool overflow = false;
+  size_t queued = 0;
   portENTER_CRITICAL(&ref_lock);
   if (!ref_last_us || now - ref_last_us > 200000) {
     ref_head = ref_tail = ref_count = 0;
@@ -96,19 +102,33 @@ void pet_p4_afe_reference(const int16_t *pcm, size_t samples) {
     ref_count = REF_DELAY;
   }
   ref_last_us = now;
+  queued = ref_count;
   if (ref_count + samples > REF_SIZE) overflow = true;
   else for (size_t i = 0; i < samples; ++i) {
     reference[ref_head] = pcm[i]; ref_head = (ref_head + 1) % REF_SIZE; ++ref_count;
   }
   portEXIT_CRITICAL(&ref_lock);
-  if (overflow) fail("reference overflow");
+  if (overflow) {
+    unsigned last = atomic_load(&last_feed_ms);
+    unsigned started = atomic_load(&last_feed_start_ms);
+    uint32_t now_ms = (uint32_t) (now / 1000ULL);
+    ESP_LOGE(TAG, "reference backlog=%u incoming=%u feed_running=%u feed_start_age_ms=%u feed_done_age_ms=%u",
+             (unsigned) queued, (unsigned) samples,
+             atomic_load(&feed_in_progress) ? 1U : 0U,
+             started ? (unsigned) (now_ms - started) : 0U,
+             last ? (unsigned) (now_ms - last) : 0U);
+    fail("reference overflow");
+  }
 }
 void pet_p4_afe_reset_stream(void) {
   atomic_fetch_add(&generation, 1);
   pet_p4_afe_reference_abort();
 }
+/* 在音频任务中处理麦克风帧，并更新最近一次完成处理的时间。 */
 bool pet_p4_afe_feed(const int16_t *mic) {
   if (!pet_p4_afe_ready()) return false;
+  atomic_store(&last_feed_start_ms, (uint32_t) (esp_timer_get_time() / 1000ULL));
+  atomic_store(&feed_in_progress, true);
   unsigned current = atomic_load(&generation);
   if (feed_generation != current) {
     used = filled = 0; feed_generation = current;
@@ -121,7 +141,7 @@ bool pet_p4_afe_feed(const int16_t *mic) {
     ns_destroy(ns); ns = ns_create(10);
     vad_destroy(vad); vad = vad_create_with_param(VAD_MODE_2, 16000, 20, 120, 100);
     if (!aec || !ns || !vad || aec_get_chunksize(aec) != chunk_samples) {
-      fail("stream DSP reset failed"); return false;
+      fail("stream DSP reset failed"); atomic_store(&feed_in_progress, false); return false;
     }
     memset(mic_chunk, 0, chunk_samples * sizeof(int16_t));
     memset(ref_chunk, 0, chunk_samples * sizeof(int16_t));
@@ -157,7 +177,9 @@ bool pet_p4_afe_feed(const int16_t *mic) {
       assembled.speech = vad_process_with_trigger(vad, assembled.pcm) == VAD_SPEECH;
       vad_us += (uint64_t)esp_timer_get_time() - step_started;
       assembled.generation = current;
-      if (xQueueSend(output, &assembled, 0) != pdTRUE) {fail("processed queue overflow"); return false;}
+      if (xQueueSend(output, &assembled, 0) != pdTRUE) {
+        fail("processed queue overflow"); atomic_store(&feed_in_progress, false); return false;
+      }
       filled = 0;
     }
   }
@@ -177,6 +199,8 @@ bool pet_p4_afe_feed(const int16_t *mic) {
              (unsigned)elapsed, (unsigned)maximum_us, (unsigned)aec_us, (unsigned)ns_us, (unsigned)vad_us);
     fail("DSP too slow");
   }
+  atomic_store(&last_feed_ms, (uint32_t) (esp_timer_get_time() / 1000ULL));
+  atomic_store(&feed_in_progress, false);
   return pet_p4_afe_ready();
 }
 bool pet_p4_afe_take(int16_t *pcm, bool *speech) {
@@ -188,6 +212,7 @@ bool pet_p4_afe_take(int16_t *pcm, bool *speech) {
   }
   return false;
 }
+/* 按芯片版本初始化实时 DSP，保留片内内存给 USB、显示与对齐音频块。 */
 bool pet_p4_afe_init(void) {
   if (pet_p4_afe_ready()) return true;
   void *dma_reserve[2] = {NULL, NULL};
@@ -213,12 +238,15 @@ bool pet_p4_afe_init(void) {
     .sample_rate = 16000, .caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
 #ifdef PET_P4_AEC_BENCH_FD
     .mode = AEC_MODE_FD_LOW_COST, .nlp_level = AEC_NLP_LEVEL_AGGR,
+#elif CONFIG_ESP32P4_REV_MIN_FULL >= 300
+    /* v3 同板对照中 VOIP 超出实时预算，FD 保持约 3 ms；v1 沿用已验证模式。 */
+    .mode = AEC_MODE_FD_LOW_COST, .nlp_level = AEC_NLP_LEVEL_AGGR,
 #else
     .mode = AEC_MODE_VOIP_LOW_COST, .nlp_level = AEC_NLP_LEVEL_VERYAGGR,
 #endif
   };
   aec = aec_create_from_config(&config);
-  ESP_LOGI(TAG, "AEC allocation ok=%d internal=%u", aec != NULL,
+  ESP_LOGI(TAG, "AEC allocation mode=%d ok=%d internal=%u", (int)config.mode, aec != NULL,
            (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
   ns = ns_create(10);
   vad = vad_create_with_param(VAD_MODE_2, 16000, 20, 120, 100);
