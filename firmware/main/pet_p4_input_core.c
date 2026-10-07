@@ -310,3 +310,42 @@ pet_p4_joystick_direction_t pet_p4_joystick_decoder_update(
   );
   return decoder->direction;
 }
+
+// 网格每页四项；跨页仍保持原行或原列，缺失目标时留在原项。
+bool pet_p4_component_grid_target(
+  size_t selected,
+  size_t count,
+  pet_p4_joystick_direction_t direction,
+  size_t *target
+) {
+  if (!target || selected >= count) return false;
+  size_t next = selected;
+  switch (direction) {
+    case PET_P4_JOYSTICK_UP:
+      if (selected < 2) return false;
+      next = selected - 2;
+      break;
+    case PET_P4_JOYSTICK_DOWN:
+      if (count - selected <= 2) return false;
+      next = selected + 2;
+      break;
+    case PET_P4_JOYSTICK_LEFT:
+      if (selected % 2 == 1) next = selected - 1;
+      else if (selected >= 4) next = selected - 3;
+      else return false;
+      break;
+    case PET_P4_JOYSTICK_RIGHT:
+      if (selected % 2 == 0) {
+        if (count - selected <= 1) return false;
+        next = selected + 1;
+      } else {
+        if (count - selected <= 3) return false;
+        next = selected + 3;
+      }
+      break;
+    default:
+      return false;
+  }
+  *target = next;
+  return true;
+}

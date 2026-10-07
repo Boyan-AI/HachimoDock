@@ -15,6 +15,21 @@ static void release_to_center(pet_p4_joystick_decoder_t *decoder) {
   assert(pet_p4_joystick_decoder_update(decoder, 2048, 2048, 5) == PET_P4_JOYSTICK_CENTER);
 }
 
+// 检查指定方向始终抵达同一行或列，包括跨页位置。
+static void assert_grid_moves(size_t selected, size_t count, pet_p4_joystick_direction_t direction, size_t expected) {
+  size_t target = count;
+  assert(pet_p4_component_grid_target(selected, count, direction, &target));
+  assert(target == expected);
+}
+
+// 空位和边界不得悄悄跳到其他行列，也不得改写输出位置。
+static void assert_grid_stays(size_t selected, size_t count, pet_p4_joystick_direction_t direction) {
+  size_t target = count;
+  assert(!pet_p4_component_grid_target(selected, count, direction, &target));
+  assert(target == count);
+}
+
+// 覆盖实体方向解码及组件中心两列网格在满页、跨页和末页缺项时的移动。
 int main(void) {
   int center_x;
   int center_y;
@@ -61,6 +76,33 @@ int main(void) {
   assert(pet_p4_joystick_decoder_update(&joystick, 3500, 3100, 10) == PET_P4_JOYSTICK_RIGHT);
   assert(pet_p4_joystick_decoder_update(&joystick, 3500, 3100, 140) == PET_P4_JOYSTICK_RIGHT);
   release_to_center(&joystick);
+
+  assert_grid_moves(0, 4, PET_P4_JOYSTICK_DOWN, 2);
+  assert_grid_moves(0, 4, PET_P4_JOYSTICK_RIGHT, 1);
+  assert_grid_moves(1, 4, PET_P4_JOYSTICK_DOWN, 3);
+  assert_grid_moves(2, 4, PET_P4_JOYSTICK_UP, 0);
+  assert_grid_moves(2, 4, PET_P4_JOYSTICK_RIGHT, 3);
+  assert_grid_moves(3, 4, PET_P4_JOYSTICK_LEFT, 2);
+  assert_grid_moves(3, 4, PET_P4_JOYSTICK_UP, 1);
+  assert_grid_stays(0, 4, PET_P4_JOYSTICK_UP);
+  assert_grid_stays(0, 4, PET_P4_JOYSTICK_LEFT);
+  assert_grid_stays(3, 4, PET_P4_JOYSTICK_RIGHT);
+  assert_grid_stays(3, 4, PET_P4_JOYSTICK_DOWN);
+
+  assert_grid_moves(1, 7, PET_P4_JOYSTICK_RIGHT, 4);
+  assert_grid_moves(3, 7, PET_P4_JOYSTICK_RIGHT, 6);
+  assert_grid_moves(4, 7, PET_P4_JOYSTICK_LEFT, 1);
+  assert_grid_moves(6, 7, PET_P4_JOYSTICK_LEFT, 3);
+  assert_grid_moves(4, 7, PET_P4_JOYSTICK_DOWN, 6);
+  assert_grid_moves(6, 7, PET_P4_JOYSTICK_UP, 4);
+  assert_grid_moves(2, 5, PET_P4_JOYSTICK_DOWN, 4);
+  assert_grid_moves(4, 5, PET_P4_JOYSTICK_UP, 2);
+  assert_grid_stays(3, 5, PET_P4_JOYSTICK_DOWN);
+  assert_grid_stays(4, 5, PET_P4_JOYSTICK_RIGHT);
+  assert_grid_stays(0, 1, PET_P4_JOYSTICK_DOWN);
+  assert_grid_stays(0, 0, PET_P4_JOYSTICK_RIGHT);
+  assert_grid_stays(0, 7, PET_P4_JOYSTICK_CENTER);
+  assert(!pet_p4_component_grid_target(0, 1, PET_P4_JOYSTICK_RIGHT, NULL));
 
   return 0;
 }

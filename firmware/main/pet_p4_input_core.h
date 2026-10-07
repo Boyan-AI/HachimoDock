@@ -11,6 +11,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -115,6 +116,14 @@ pet_p4_joystick_direction_t pet_p4_joystick_decoder_update(
   int x,
   int y,
   uint32_t elapsed_ms
+);
+
+// 按组件中心每页两列两行的可见位置计算方向目标；边界或空格不移动。
+bool pet_p4_component_grid_target(
+  size_t selected,
+  size_t count,
+  pet_p4_joystick_direction_t direction,
+  size_t *target
 );
 
 #ifdef __cplusplus

@@ -3510,6 +3510,37 @@ bool pet_p4_miniapp_catalog_move(int delta) {
   return moved;
 }
 
+// 将屏幕可见索引映射回目录原始索引，避免隐藏项目破坏网格方向。
+bool pet_p4_miniapp_catalog_move_grid(pet_p4_joystick_direction_t direction) {
+  bool moved = false;
+  portENTER_CRITICAL(&g_runtime_lock);
+  size_t count = 0;
+  size_t selected = 0;
+  bool selected_visible = false;
+  for (size_t i = 0; i < g_catalog_count; ++i) {
+    if (!catalog_entry_visible(i)) continue;
+    if (i == g_catalog_selected) {
+      selected = count;
+      selected_visible = true;
+    }
+    ++count;
+  }
+  if (!selected_visible && count > 0) {
+    int first = catalog_visible_index(0);
+    if (first >= 0) g_catalog_selected = (size_t) first;
+  }
+  size_t target = 0;
+  if (pet_p4_component_grid_target(selected, count, direction, &target)) {
+    int raw_target = catalog_visible_index(target);
+    if (raw_target >= 0) {
+      g_catalog_selected = (size_t) raw_target;
+      moved = true;
+    }
+  }
+  portEXIT_CRITICAL(&g_runtime_lock);
+  return moved;
+}
+
 bool pet_p4_miniapp_catalog_activate_selected(void) {
   portENTER_CRITICAL(&g_runtime_lock);
   size_t selected = g_catalog_selected;

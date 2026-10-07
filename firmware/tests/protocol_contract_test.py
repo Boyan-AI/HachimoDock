@@ -2225,7 +2225,8 @@ def test_p4_hardware_inputs_are_debounced_persistent_and_configurable():
     renderer = read_required("main/pet_p4_renderer.c")
     assert 'draw_text_line("组件中心"' in renderer
     assert '"已安装 %u 个"' in renderer
-    assert '"左右切换    确认键打开    全局键返回"' in renderer
+    assert '"四向选组件    确认键打开    全局键返回"' in renderer
+    assert "pet_p4_miniapp_catalog_move_grid(direction)" in input_source
     assert "int count = 2;" in renderer
     assert 'strcmp(page, "components") == 0 || strcmp(page, "app") == 0 ? 1 : 0' in renderer
     assert "dispatch_component_binding_event" in input_source

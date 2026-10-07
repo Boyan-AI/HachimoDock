@@ -9,9 +9,26 @@ export function friendlyControlLabel(label = "") {
 /** 根据平台和按键映射生成说明，macOS 只粘贴到系统焦点并由用户手动发送。 */
 export function buildUsageHelp(rows = [], actions = {}, enabled = true, pending = false, platform = detectDesktopPlatform()) {
   const focusedInput = platform === "macos";
-  const labels = (action) => rows.filter(row => (actions[row.id] ?? row.defaultAction) === action)
+  const actionFor = row => actions[row.id] ?? row.defaultAction;
+  const labels = (action) => rows.filter(row => actionFor(row) === action)
     .map(row => friendlyControlLabel(row.label));
   const binding = action => labels(action).join("或");
+  const selectionAction = action => action === "session_previous" || action === "session_next";
+  const gridDirections = [
+    ["joystick.up", "上"], ["joystick.down", "下"],
+    ["knob.rotate_ccw", "左"], ["knob.rotate_cw", "右"],
+  ].filter(([event]) => rows.some(row => row.event === event && selectionAction(actionFor(row))))
+    .map(([, direction]) => direction);
+  const sequentialSelection = ["session_previous", "session_next"].map((action, index) =>
+    rows.filter(row => !["joystick.up", "joystick.down", "knob.rotate_ccw", "knob.rotate_cw"].includes(row.event)
+      && actionFor(row) === action)
+      .map(row => `${friendlyControlLabel(row.label)}选择${index === 0 ? "上一个" : "下一个"}`)
+      .join("或")
+  ).filter(Boolean).join("；");
+  const gridSelection = gridDirections.length
+    ? `在组件中心，摇杆向${gridDirections.join("／")}按屏幕网格移动选中项（上下同列、左右同行）`
+    : "";
+  const componentSelection = [gridSelection, sequentialSelection].filter(Boolean).join("；");
   const confirm = binding("page_enter");
   const voice = labels("voice_ptt").map(label => label.replace(/^长按\s*/, "按住 ")).join("或");
   const chat = binding("realtime_chat");
@@ -31,7 +48,7 @@ export function buildUsageHelp(rows = [], actions = {}, enabled = true, pending 
       ? `在宠物界面，使用「上一个／下一个」切换会话气泡。${[binding("session_previous"), binding("session_next")].filter(Boolean).join("；")}。`
       : unbound,
     component: binding("component_center") ? `${binding("component_center")}，在宠物界面与组件列表之间切换。组件运行时请先返回。` : unbound,
-    select: [binding("session_previous") && `${binding("session_previous")}选择上一个`, binding("session_next") && `${binding("session_next")}选择下一个`].filter(Boolean).join("；") || unbound,
+    select: componentSelection ? `${componentSelection}。` : unbound,
     enter: confirm ? `${confirm}打开选中的组件。` : unbound,
     back: binding("page_back") ? `${binding("page_back")}退出组件，返回组件列表。` : unbound,
   };

@@ -2511,6 +2511,7 @@ static const char *component_card_caption(const char *id) {
   return "打开体验";
 }
 
+// 组件中心按每页两列两行绘制，方向提示与实体摇杆的网格导航保持一致。
 static void render_component_center_page(void) {
   const uint16_t background = rgb565(246, 247, 249);
   const uint16_t panel = rgb565(255, 255, 255);
@@ -2576,7 +2577,7 @@ static void render_component_center_page(void) {
         page == selected/per_page ? orange : rgb565(206, 211, 220));
     }
   }
-  draw_text_center("左右切换    确认键打开    全局键返回", 320, 446, 580, muted, 1);
+  draw_text_center("四向选组件    确认键打开    全局键返回", 320, 446, 580, muted, 1);
 }
 
 static void draw_connection_banner(

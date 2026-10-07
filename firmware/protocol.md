@@ -736,8 +736,14 @@ legacy `page_main/page_back` records, and firmware ignores any such records that
 remain in an already-installed package. While `app` is open, whichever persisted
 global event currently maps to `page_back` is resolved before component gameplay
 bindings, so changing the global exit key immediately changes every component.
-The default remains SW3 short press; SW1 long-press PTT is unaffected. The two
-legacy-named session actions now select content within the current peer page. The two mini-app proxy actions only run while
+The default remains SW3 short press; SW1 long-press PTT is unaffected. On the
+`components` page, a joystick direction configured as `session_previous` or
+`session_next` moves the visible selection in the physical direction across the
+two-column, two-row grid. Up/down stay in the same column, left/right stay in
+the same row, including when they cross a four-item page boundary. A missing
+target on the last page or at the catalog boundary leaves selection unchanged.
+Other controls mapped to these legacy-named session actions keep their
+previous/next catalog order; on `main` they select Session bubbles. The two mini-app proxy actions only run while
 the app page is open and dispatch its existing `screen.region.tap` or
 `screen.region.long_press` binding. Custom values are limited to 159 UTF-8 bytes.
 The board replies on `input/config-ack`; legacy config uses `button-config-ack`.

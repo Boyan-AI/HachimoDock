@@ -1438,6 +1438,7 @@ static void process_button_event(
   }
 }
 
+// 组件中心仅把配置为顺序导航的实体摇杆改为网格方向；其余页面和自定义动作照旧派发。
 void pet_p4_input_process(
   pet_p4_runtime_state_t *state,
   pet_p4_send_line_fn send_line,
@@ -1448,9 +1449,10 @@ void pet_p4_input_process(
   while (xQueueReceive(g_event_queue, &event, 0) == pdTRUE) {
     if (event.control == PET_P4_INPUT_CONTROL_JOYSTICK
         && event.gesture == PET_P4_INPUT_GESTURE_DIRECTION) {
+      const pet_p4_joystick_direction_t direction = (pet_p4_joystick_direction_t) event.delta;
       const char *event_name = "";
       const char *gesture = "";
-      switch ((pet_p4_joystick_direction_t) event.delta) {
+      switch (direction) {
         case PET_P4_JOYSTICK_UP:
           event_name = "joystick.up";
           gesture = "up";
@@ -1475,6 +1477,19 @@ void pet_p4_input_process(
           break;
       }
       if (!event_name[0]) continue;
+      if (state && !pet_p4_conversation_active(state)
+          && strcmp(state->screen_page, "components") == 0) {
+        const pet_p4_input_binding_t *binding = active_binding(event_name);
+        if (binding && (strcmp(binding->action, "session_previous") == 0
+            || strcmp(binding->action, "session_next") == 0)) {
+          if (pet_p4_miniapp_catalog_move_grid(direction)) state->last_update_ms = event.ts_ms;
+          send_input_event(
+            state, send_line, ctx, &event, event_name, gesture,
+            binding, "component_select", true
+          );
+          continue;
+        }
+      }
       if (state && !pet_p4_conversation_active(state)
           && strcmp(state->screen_page, "app") == 0
           && !pet_p4_miniapp_has_input(event_name)

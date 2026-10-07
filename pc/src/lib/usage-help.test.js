@@ -48,3 +48,22 @@ test("macOS dictation describes current focus and never suggests device confirma
   assert.doesNotMatch(help.confirm, /短按.*确认发送/);
   assert.equal(buildUsageHelp(rows, {}, true, false, "windows").focusedInput, false);
 });
+
+// 检查组件说明仅把已映射的实体摇杆方向标为网格导航，其他按键仍按顺序选择。
+test("component help describes configured joystick grid directions and keeps other buttons sequential", () => {
+  const gridRows = [
+    ...rows,
+    { id: "up", label: "摇杆向上", event: "joystick.up", defaultAction: "session_previous" },
+    { id: "down", label: "摇杆向下", event: "joystick.down", defaultAction: "session_next" },
+    { id: "left", label: "摇杆向左", event: "knob.rotate_ccw", defaultAction: "session_previous" },
+    { id: "right", label: "摇杆向右", event: "knob.rotate_cw", defaultAction: "session_next" },
+    { id: "extra", label: "SW3 长按", event: "button.sw3.long_press", defaultAction: "session_next" },
+  ];
+  const help = buildUsageHelp(gridRows, {}, true, false, "macos");
+  assert.match(help.select, /摇杆向上／下／左／右按屏幕网格移动选中项（上下同列、左右同行）/);
+  assert.match(help.select, /长按 3 键选择下一个/);
+  assert.doesNotMatch(help.select, /摇杆向上选择上一个/);
+  const remapped = buildUsageHelp(gridRows, { up: "disabled" }, true, false, "macos");
+  assert.doesNotMatch(remapped.select, /向上／下/);
+  assert.match(remapped.select, /摇杆向下／左／右/);
+});

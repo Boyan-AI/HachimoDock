@@ -19,16 +19,18 @@ function readSource(fileName) {
   return readFileSync(join(srcDir, fileName), "utf8");
 }
 
+// 检查设备指南与 P4 组件中心四向网格导航和默认手势保持一致。
 test("device guide documents P4 navigation and all twelve configurable gestures", () => {
   const content = readSource("lib/device-guide-content.js");
   const modal = readSource("DeviceGuideModal.jsx");
 
   assert.match(content, /screenIds: \["main", "components"\]/);
-  assert.match(content, /左右选择当前内容，SW2 在宠物与组件页面间切换/);
-  assert.match(content, /\{ gesture: "向上", action: "可独立配置" \}/);
-  assert.match(content, /\{ gesture: "向下", action: "可独立配置" \}/);
-  assert.match(content, /\{ gesture: "向左", action: "上一个" \}/);
-  assert.match(content, /\{ gesture: "向右", action: "下一个" \}/);
+  assert.match(content, /组件中心按四向网格选择；SW2 切换页面/);
+  assert.match(content, /组件中心上下保持列、左右保持行移动选中项/);
+  assert.match(content, /\{ gesture: "向上", action: "组件同列向上／主页上一会话" \}/);
+  assert.match(content, /\{ gesture: "向下", action: "组件同列向下／主页下一会话" \}/);
+  assert.match(content, /\{ gesture: "向左", action: "组件同行向左／主页上一会话" \}/);
+  assert.match(content, /\{ gesture: "向右", action: "组件同行向右／主页下一会话" \}/);
   assert.match(content, /\{ gesture: "中按短按", action: "确认 \/ 进入" \}/);
   assert.match(content, /\{ gesture: "中按长按", action: "暂不绑定" \}/);
   assert.match(content, /export const P4_CARDS/);

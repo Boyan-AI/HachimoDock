@@ -14,6 +14,7 @@
 #include "cJSON.h"
 #include "esp_err.h"
 #include "pet_p4_game.h"
+#include "pet_p4_input_core.h"
 #include "pet_p4_stats.h"
 #include "pet_p4_widget_data.h"
 
@@ -95,6 +96,8 @@ size_t pet_p4_miniapp_catalog_selected(void);
 bool pet_p4_miniapp_catalog_get(size_t index, pet_p4_miniapp_catalog_entry_t *out);
 void pet_p4_miniapp_catalog_focus_active(void);
 bool pet_p4_miniapp_catalog_move(int delta);
+// 组件中心的实体摇杆按屏幕网格移动，保留原有顺序切换接口供其他按键使用。
+bool pet_p4_miniapp_catalog_move_grid(pet_p4_joystick_direction_t direction);
 bool pet_p4_miniapp_catalog_activate_selected(void);
 bool pet_p4_miniapp_catalog_activate_id(const char *widget_id);
 bool pet_p4_miniapp_sync_stats(const pet_p4_stats_model_t *stats);
