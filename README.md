@@ -32,7 +32,7 @@
 
 ## 本分支语音修复预发布
 
-[v0.1.102-rc.1](https://github.com/Boyan-AI/HachimoDock/releases/tag/v0.1.102-rc.1) 提供 macOS arm64 Pet Manager `0.1.102-rc.1` 和 ESP32-P4 v1/v3 OTA 固件 `0.7.73-p4-rc.1`，附带 `SHA256SUMS`、发布清单及验证范围。修复 v3 AEC 实时预算问题，保留 AEC 故障后的半双工恢复。真人双讲与长时间稳定性仍待验证；此版本为预发布。本次仅提供 OTA 应用镜像，首次出厂烧录继续参考上游完整烧录包。
+[v0.1.102-rc.2](https://github.com/Boyan-AI/HachimoDock/releases/tag/v0.1.102-rc.2) 提供 macOS arm64 Pet Manager `0.1.102-rc.2`，长按设备 1 键识别后将文字粘贴到当前光标，不自动打开 Agent 或发送。配套 ESP32-P4 v1/v3 OTA 固件仍为 `0.7.73-p4-rc.1`，与上一预发布相同；附带 `SHA256SUMS`、发布清单及验证范围。真人双讲与长时间稳定性仍待验证；此版本为预发布。本次仅提供 OTA 应用镜像，首次出厂烧录继续参考上游完整烧录包。
 
 ## 项目简介
 

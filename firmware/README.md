@@ -1,6 +1,6 @@
 # Pet Manager ESP32-P4 设备端固件
 
-本分支预发布版本为 **0.7.73-p4-rc.1**，配套 PC 客户端 **0.1.102-rc.1**，下载见 [语音修复预发布](https://github.com/Boyan-AI/HachimoDock/releases/tag/v0.1.102-rc.1)。提供 v1/v3 OTA 应用镜像；普通 OTA 保留形象、用户组件和配置。v3 使用 FD AEC，v1 保留 VOIP；已完成验证与限制见 [实时对话记录](../pc/docs/realtime-duplex.md)，产物清单见 [发布清单](../latest-release.json)。本次不提供新的完整出厂烧录包。
+本分支固件版本仍为 **0.7.73-p4-rc.1**，配套 PC 客户端更新至 **0.1.102-rc.2**，下载见 [焦点语音输入预发布](https://github.com/Boyan-AI/HachimoDock/releases/tag/v0.1.102-rc.2)。v1/v3 OTA 应用镜像与上一预发布相同；普通 OTA 保留形象、用户组件和配置。v3 使用 FD AEC，v1 保留 VOIP；已完成验证与限制见 [实时对话记录](../pc/docs/realtime-duplex.md)，产物清单见 [发布清单](../latest-release.json)。本次不提供新的完整出厂烧录包。
 
 本目录是 HachimoDock 当前使用的 ESP32-P4 固件源码，与 [PC 客户端](../pc/) 配合使用：PC 负责 Agent 状态监听、语音识别服务对接、素材预处理与传输；设备负责 USB 通信、按键与摇杆输入、屏幕渲染、形象播放及组件运行。
 

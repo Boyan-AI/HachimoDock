@@ -2,7 +2,7 @@
 
 Pet Manager 用于连接设备、管理形象和组件，以及将 Agent 状态与语音输入同步到桌面小屏。支持 macOS arm64 与 Windows x64。
 
-本分支 [0.1.102-rc.1 语音修复预发布](https://github.com/Boyan-AI/HachimoDock/releases/tag/v0.1.102-rc.1) 提供 macOS arm64 客户端，内置 v1/v3 `0.7.73-p4-rc.1` 固件。AEC 失效后重新进入使用半双工；v3 固件改善 AEC 实时处理预算。本次未提供新的 Windows 安装包，真人双讲与长时间稳定性仍待验证。
+本分支 [0.1.102-rc.2 焦点语音输入预发布](https://github.com/Boyan-AI/HachimoDock/releases/tag/v0.1.102-rc.2) 提供 macOS arm64 客户端：长按设备 1 键语音识别后，将文字粘贴到当前光标，不自动打开 Agent 或发送。内置 v1/v3 `0.7.73-p4-rc.1` 固件与上一预发布相同；AEC 失效后重新进入使用半双工，v3 固件改善 AEC 实时处理预算。本次未提供新的 Windows 安装包，真人双讲与长时间稳定性仍待验证。
 
 当前源码支持 [WorkBuddy](docs/workbuddy.md)：独立形象绑定、状态与气泡同步、当前可见对话的按键语音草稿及组件生成 Skill 安装。历史会话需在 WorkBuddy 手动打开。已发布安装包的能力以对应版本为准。
 
