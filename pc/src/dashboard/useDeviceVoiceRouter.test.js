@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import {
   DEVICE_VOICE_ROUTER_INITIAL_STATE,
   deviceVoiceRouterReducer,
+  audioActivity,
   transcriptMessage,
   voiceFlowMessage,
 } from "./useDeviceVoiceRouter.js";
@@ -24,6 +25,19 @@ test("Failed visible composer delivery keeps the actual cause beside its summary
     assert.match(state.flow.composerError, /节点=12/);
     assert.match(voiceFlowMessage(state.flow), /前台会话未定位.*\n具体原因：.*节点=12/s);
   }
+});
+
+// cmux 可实际收到粘贴，但 AX 文本读回未必更新；状态应只描述已投递的操作。
+test("focused-input paste status does not blame board recording for desktop readback", () => {
+  const delivered = audioActivity({ phase: "draft_ready", ok: true, composerMode: "focused-input" });
+  assert.match(delivered.message, /粘贴操作已发送.*核对目标输入框/);
+  const failed = audioActivity({
+    phase: "error", ok: false, composerMode: "focused-input",
+    error: "当前光标输入失败：焦点已变化",
+  });
+  assert.equal(failed.message, "当前光标输入失败：焦点已变化");
+  assert.doesNotMatch(failed.message, /板端录音/);
+  assert.match(audioActivity({ phase: "error", ok: false, error: "音频断流" }).message, /板端录音处理失败：音频断流/);
 });
 
 test("Voice failure details are not duplicated or displayed after success", () => {

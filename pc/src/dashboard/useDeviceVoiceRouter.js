@@ -276,10 +276,12 @@ export function transcriptMessage(payload, phase, composerMode) {
   return "";
 }
 
-function audioActivity(payload) {
+/** 区分设备录音与桌面焦点粘贴阶段，避免把后者误报为板端故障。 */
+export function audioActivity(payload) {
   const phase = normalizeText(payload.phase).toLowerCase();
   if (!phase || phase === "status") return null;
   const ok = payload.ok !== false;
+  const focusedInput = normalizeText(payload.composerMode).toLowerCase() === "focused-input";
   const bytes = Number(payload.bytes || 0);
   const durationMs = Number(
     payload.forwardedDurationMs || payload.durationMs || (bytes > 0 ? bytes / 32 : 0),
@@ -288,7 +290,9 @@ function audioActivity(payload) {
   if (phase === "cancelled") {
     message = normalizeText(payload.error) || "设备录音已取消。";
   } else if (!ok) {
-    message = `板端录音处理失败：${normalizeText(payload.error) || "音频流校验失败"}`;
+    message = focusedInput
+      ? normalizeText(payload.error) || "当前光标输入未完成，请检查目标输入框。"
+      : `板端录音处理失败：${normalizeText(payload.error) || "音频流校验失败"}`;
   } else if (phase === "begin") {
     message = "设备麦克风录音中，音频正通过 USB 转发...";
   } else if (phase === "streaming") {
@@ -299,6 +303,8 @@ function audioActivity(payload) {
     message = "正在识别设备麦克风录音...";
   } else if (phase === "recognized") {
     message = "识别完成，正在写入输入框草稿...";
+  } else if (phase === "draft_ready" && focusedInput) {
+    message = "粘贴操作已发送，请核对目标输入框；不会自动发送。";
   }
   return message ? { phase, ok, message } : null;
 }

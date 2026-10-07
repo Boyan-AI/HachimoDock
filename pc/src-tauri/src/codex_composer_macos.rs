@@ -630,7 +630,9 @@ pub(super) fn insert_at_focused_text_target(
                 break;
             }
             if Instant::now() >= deadline {
-                return Err("目标输入框未确认收到文字；已停止，本次不会自动重试".into());
+                // 终端可能公开可读但不随命令行输入更新的 AXValue；焦点仍稳定时只能确认粘贴键已投递。
+                eprintln!("[voice-focus] paste dispatched; AXValue did not change before timeout");
+                break;
             }
         }
         Ok(())

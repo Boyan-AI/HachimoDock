@@ -127,7 +127,10 @@ function basenameFromPath(value) {
   return parts[parts.length - 1] || "";
 }
 
-function voicePhaseLabel(phase) {
+/** 系统焦点模式只承诺粘贴键已投递，避免把终端的不可读回状态写成已确认输入。 */
+function voicePhaseLabel(phase, composerMode = "") {
+  if (composerMode === "focused-input" && phase === "draft_ready") return "粘贴已发送";
+  if (composerMode === "focused-input" && phase === "error") return "输入失败";
   return ({
     listening: "正在聆听",
     partial: "实时识别中",
@@ -565,7 +568,7 @@ export default function VoiceAssistantPanel({
               }`}
             >
               {`设备语音状态：${
-                voicePhaseLabel(voicePhase)
+                voicePhaseLabel(voicePhase, state.deviceVoiceFlow.composerMode)
               }${
                 state.deviceVoiceFlow.updatedAt
                   ? `（${new Date(state.deviceVoiceFlow.updatedAt).toLocaleTimeString()}）`
