@@ -1,6 +1,6 @@
 /**
  * [Input] state (busStatus/busSessions/busSessionId/voiceRuntime/audioBridge{*}/mockInject/deviceVoiceFlow/selectedAgentId/deviceOnline) + dispatch + toggleAudioBridge/sendMockButtonInject + voiceConfig + selectedTrigger + onVoiceConfigChange/onVoiceEnabledChange + API-settings navigation.
- * [Output] Region 4: a compact voice console with draft-only long-press recognition, explicit Confirm-key delivery, desktop composer labels, and permission/foreground recovery tips.
+ * [Output] Region 4: a compact voice console with draft-only long-press recognition, macOS current-focus paste and other-platform Confirm-key delivery, desktop composer labels, and permission/foreground recovery tips.
  * [Pos] component node in pc/src/dashboard
  * [Sync] If this file changes, update `pc/src/dashboard/.folder.md`.
  */
@@ -26,7 +26,7 @@ import Switch from "../shell/Switch";
 import UsageHelp from "../UsageHelp.jsx";
 import { useUsageHelp } from "../shell/DeviceContext.jsx";
 import { friendlyControlLabel } from "../lib/usage-help.js";
-import { deviceVoicePlatformWarning } from "../lib/agent-voice-capabilities.js";
+import { detectDesktopPlatform, deviceVoiceBlockingReason } from "../lib/agent-voice-capabilities.js";
 import { voiceFlowMessage } from "./useDeviceVoiceRouter.js";
 
 export function buildVoiceSummary(voiceConfig, selectedTrigger) {
@@ -54,30 +54,22 @@ export const VISIBLE_COMPOSER_DEV_PATHS = Object.freeze({
   windows: String.raw`pc\src-tauri\target\debug\pet-manager-tauri.exe`,
 });
 
-export function detectDesktopPlatform(navigatorLike) {
-  const target = navigatorLike
-    || (typeof navigator === "undefined" ? null : navigator);
-  const descriptor = [
-    target?.userAgentData?.platform,
-    target?.platform,
-    target?.userAgent,
-  ].filter(Boolean).join(" ").toLowerCase();
-  if (descriptor.includes("win")) return "windows";
-  if (descriptor.includes("mac")) return "macos";
-  return "other";
-}
+export { detectDesktopPlatform } from "../lib/agent-voice-capabilities.js";
 
+/** 根据失败原因展示当前平台的焦点或辅助功能恢复提示。 */
 export function needsVisibleComposerGuidance(state) {
   const flow = state?.deviceVoiceFlow || {};
   const hasDeliveryError = state?.audioBridgeLastResult === "error"
     || flow.phase === "error"
-    || flow.ok === false;
+    || flow.ok === false
+    || state?.mockInjectOk === false;
   if (!hasDeliveryError) return false;
 
   const details = [
     state?.audioBridgeMessage,
     flow.message,
     flow.composerError,
+    state?.mockInjectMessage,
   ].filter((value) => typeof value === "string").join("\n");
   const isVisibleDesktopAgent = ["codex", "claude-code", "workbuddy"].includes(state?.selectedAgentId)
     || ["codex", "claude-code", "workbuddy"].includes(flow.agentId)
@@ -85,8 +77,9 @@ export function needsVisibleComposerGuidance(state) {
   const isMimocode = state?.selectedAgentId === "mimocode"
     || flow.agentId === "mimocode"
     || /\bMiMoCode\b/i.test(details);
-  return (isVisibleDesktopAgent || isMimocode) && (
-    /(macOS|Windows).*辅助功能/i.test(details)
+  return (detectDesktopPlatform() === "macos" || flow.composerMode === "focused-input" || isVisibleDesktopAgent || isMimocode) && (
+    /当前.*(焦点|输入框|光标)/.test(details)
+    || /(macOS|Windows).*辅助功能/i.test(details)
     || /(macOS|Windows).*输入焦点无法确认/i.test(details)
     || /(macOS|Windows).*输入框已有用户草稿/i.test(details)
     || /(ChatGPT（Codex）|Codex|Claude|WorkBuddy) 前台会话未定位/i.test(details)
@@ -140,7 +133,7 @@ function voicePhaseLabel(phase) {
     partial: "实时识别中",
     recognizing: "确认文本中",
     finalizing: "确认文本中",
-    draft_ready: "草稿待确认",
+    draft_ready: "文字已写入",
     submitting: "发送中",
     injecting: "发送中",
     waiting_reply: "等待回复",
@@ -229,30 +222,15 @@ export default function VoiceAssistantPanel({
   const agents = Array.isArray(state.busStatus?.agents) ? state.busStatus.agents : [];
   const selectedAgent = agents.find((agent) => agent.agentId === state.selectedAgentId) || null;
   const desktopPlatform = detectDesktopPlatform();
-  const platformWarning = deviceVoicePlatformWarning(state.selectedAgentId, desktopPlatform);
-  const ready = selectedAgent?.ready === true && !platformWarning;
-  const voiceRunning = state.voiceRuntime?.running === true;
-  let audioBlockingReason = null;
-  if (!state.selectedAgentId) {
-    audioBlockingReason = "请先在「当前展示」里选择一个渠道";
-  } else if (platformWarning) {
-    audioBlockingReason = platformWarning;
-  } else if (state.voiceRuntime == null) {
-    audioBlockingReason = "正在检查语音通道...";
-  } else if (!voiceRunning) {
-    audioBlockingReason = state.voiceRuntime?.message || "语音通道暂未启动（voice-service 未就绪）";
-  } else if (state.busStatus == null) {
-    audioBlockingReason = "正在检查语音通道...";
-  } else if (state.busStatus != null && !ready) {
-    audioBlockingReason = selectedAgent?.reason || "语音 agent 未就绪";
-  }
+  const usesFocusedInput = desktopPlatform === "macos";
+  const ready = usesFocusedInput || selectedAgent?.ready === true;
+  const audioBlockingReason = deviceVoiceBlockingReason(state, desktopPlatform);
 
   const boardOffline = state.deviceOnline === false;
   const triggerLabel = friendlyControlLabel(selectedTrigger?.label || "未绑定快捷键");
   const voicePhase = state.deviceVoiceFlow?.phase || "idle";
   const showAccessibilityGuidance = needsVisibleComposerGuidance(state);
-  const isMimocodeVoice = state.selectedAgentId === "mimocode"
-    || state.deviceVoiceFlow?.agentId === "mimocode";
+
   const visibleVoiceAgentId = state.deviceVoiceFlow?.agentId || state.selectedAgentId;
   const visibleVoiceAgentLabel = visibleVoiceAgentId === "workbuddy" ? "WorkBuddy" : visibleVoiceAgentId === "claude-code"
     ? "Claude"
@@ -269,7 +247,7 @@ export default function VoiceAssistantPanel({
       : !voiceConfig.enabled
         ? "启用按键语音后，才可以启动设备监听"
         : audioBlockingReason
-          ? "语音通道暂未就绪，请检查 Agent 与识别服务"
+          ? "语音通道暂未就绪，请检查识别服务"
           : boardOffline
             ? "设备当前离线，重新连接后可启动监听"
             : "通过 USB 接收设备麦克风音频，不会使用电脑麦克风";
@@ -358,8 +336,8 @@ export default function VoiceAssistantPanel({
         pending: "",
         tone: trusted ? "success" : "error",
         message: trusted
-          ? isMimocodeVoice
-            ? "辅助功能权限已确认。请保持 MiMoCode 终端在前台，并把光标停在可输入位置。"
+          ? usesFocusedInput
+            ? "辅助功能权限已确认。请点击目标输入框，再用设备按键录音。"
             : `辅助功能权限已确认，不需要再次添加或输入密码。请继续检查目标 ${visibleVoiceAgentLabel} 会话和空输入框。`
           : "仍未获得权限。请在辅助功能列表中打开 Pet Manager；若已打开，请关闭后重新开启。",
       });
@@ -484,7 +462,7 @@ export default function VoiceAssistantPanel({
             </span>
             <span className="voice-panel__advanced-copy">
               <strong>诊断与测试</strong>
-              <small>{state.selectedAgentId === "workbuddy" ? "停止语音监听后，测试 WorkBuddy 草稿写入（不发送）" : "绕过麦克风与 ASR，直接验证当前 Agent 会话"}</small>
+              <small>{usesFocusedInput ? "本地测试：点击后 5 秒内切到目标输入框，文字只粘贴，不发送" : state.selectedAgentId === "workbuddy" ? "停止语音监听后，测试 WorkBuddy 草稿写入（不发送）" : "绕过麦克风与 ASR，直接验证当前 Agent 会话"}</small>
             </span>
             <span className="voice-panel__advanced-tag">高级</span>
             <ChevronDown
@@ -505,7 +483,7 @@ export default function VoiceAssistantPanel({
                   type: "set_mock_inject_input",
                   value: event.target.value,
                 })}
-                placeholder="输入要发送到当前会话的测试文本"
+                placeholder={usesFocusedInput ? "输入要粘贴到目标输入框的测试文本" : "输入要发送到当前会话的测试文本"}
                 rows={3}
               />
             </label>
@@ -515,7 +493,7 @@ export default function VoiceAssistantPanel({
                 className="btn-primary btn-sm"
                 disabled={
                   !ready
-                  || !state.selectedAgentId
+                  || (!usesFocusedInput && !state.selectedAgentId)
                   || state.mockInjectPending
                   || !(state.mockInjectInput || "").trim()
                 }
@@ -524,12 +502,12 @@ export default function VoiceAssistantPanel({
                 {state.mockInjectPending ? (
                   <>
                     <Loader size={14} className="spin" aria-hidden="true" />
-                    {state.selectedAgentId === "workbuddy" ? "写入中..." : "发送中..."}
+                    {usesFocusedInput ? "请在 5 秒内切换到目标输入框..." : state.selectedAgentId === "workbuddy" ? "写入中..." : "发送中..."}
                   </>
                 ) : (
                   <>
                     <Send size={14} aria-hidden="true" />
-                    {state.selectedAgentId === "workbuddy" ? "只写入 WorkBuddy 草稿" : "发送到当前会话"}
+                    {usesFocusedInput ? "5 秒后粘贴到当前光标" : state.selectedAgentId === "workbuddy" ? "只写入 WorkBuddy 草稿" : "发送到当前会话"}
                   </>
                 )}
               </button>
@@ -596,7 +574,7 @@ export default function VoiceAssistantPanel({
             </div>
           )}
 
-          {state.selectedAgentId === "workbuddy" && (
+          {!usesFocusedInput && state.selectedAgentId === "workbuddy" && (
             <p className="muted">
               请先在 WorkBuddy 打开目标对话，并保留一个主窗口。松开语音键后，完整识别结果会一次追加到输入框，确认后发送；写入完成前请保持该对话在前台。设备切换气泡不会自动切换 WorkBuddy 桌面对话。
             </p>
@@ -629,8 +607,8 @@ export default function VoiceAssistantPanel({
                   </p>
                 ) : accessibilityPermission.trusted === true ? (
                   <p>
-                    {isMimocodeVoice
-                      ? "系统已允许当前 Pet Manager 写入前台终端。此次失败来自当前光标定位，"
+                    {usesFocusedInput
+                      ? "系统已允许当前 Pet Manager 写入当前输入框。此次失败来自当前光标定位，"
                       : `系统已允许当前 Pet Manager 控制 ${visibleVoiceAgentLabel}。此次失败来自目标会话或输入框定位，`}
                     <b>请不要再次添加权限或重复输入系统密码</b>
                     。
@@ -643,7 +621,7 @@ export default function VoiceAssistantPanel({
                     {" "}
                     <b>系统设置 → 隐私与安全性 → 辅助功能</b>
                     ，允许当前 Pet Manager 进程
-                    {isMimocodeVoice ? "向前台终端输入文字" : `控制 ${visibleVoiceAgentLabel}`}
+                    {usesFocusedInput ? "向当前输入框粘贴文字" : `控制 ${visibleVoiceAgentLabel}`}
                     。
                   </p>
                 )}
@@ -692,10 +670,10 @@ export default function VoiceAssistantPanel({
                   </>
                 ) : accessibilityPermission.trusted === true ? (
                   <>
-                    {isMimocodeVoice ? (
+                    {usesFocusedInput ? (
                       <p>
-                        无需再进入系统设置。请保持 MiMoCode 终端在前台，并把光标停在输入位置；
-                        松开设备按键后追加文字，不会自动发送。{usageHelp.confirm}
+                        无需再进入系统设置。请点击要输入文字的位置；
+                        松开设备按键后，识别文字会粘贴到当前光标，不会自动发送。
                       </p>
                     ) : (
                       <p>
@@ -742,7 +720,7 @@ export default function VoiceAssistantPanel({
                 )}
                 {state.deviceVoiceFlow.composerMode === "focused-input" && (
                   <span className="voice-panel__composer-mode is-visible">
-                    MiMoCode 光标草稿
+                    当前光标输入
                   </span>
                 )}
               </div>

@@ -10,12 +10,12 @@ const rows = [
   { id: "pages", label: "SW2 短按", defaultAction: "component_center" },
 ];
 test("instructions follow current keys, including unbound actions and multiple bindings", () => {
-  const defaults = buildUsageHelp(rows);
+  const defaults = buildUsageHelp(rows, {}, true, false, "windows");
   assert.match(defaults.voice, /按住 1 键说话/);
   assert.match(defaults.confirm, /短按 1 键确认发送/);
   assert.match(defaults.chat, /长按 2 键开始聊天/);
   assert.match(defaults.back, /短按 3 键/);
-  const swapped = buildUsageHelp(rows, { one: "realtime_chat", two: "voice_ptt", confirm: "page_back", back: "page_enter" }, true, true);
+  const swapped = buildUsageHelp(rows, { one: "realtime_chat", two: "voice_ptt", confirm: "page_back", back: "page_enter" }, true, true, "windows");
   assert.match(swapped.voice, /按住 2 键/);
   assert.match(swapped.confirm, /短按 3 键/);
   assert.match(swapped.chat, /长按 1 键/);
@@ -38,4 +38,13 @@ test("chat prerequisites give an actionable next step without claiming a cloud t
   assert.match(realtimeReadiness({ ...ready, settings: { ttsConfigured: true, asrConfigured: true } }).message, /对话大模型/);
   assert.match(realtimeReadiness({ ...ready, loading: true }).message, /正在检查/);
   assert.equal(realtimeReadiness({ ...ready, failed: true }).action, "retry");
+});
+
+test("macOS dictation describes current focus and never suggests device confirmation", () => {
+  const help = buildUsageHelp(rows, {}, true, false, "macos");
+  assert.equal(help.focusedInput, true);
+  assert.match(help.voice, /按住 1 键说话.*粘贴到当前光标位置/);
+  assert.match(help.confirm, /目标应用中手动发送/);
+  assert.doesNotMatch(help.confirm, /短按.*确认发送/);
+  assert.equal(buildUsageHelp(rows, {}, true, false, "windows").focusedInput, false);
 });

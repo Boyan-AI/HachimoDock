@@ -492,13 +492,11 @@ test("board voice action injection status is surfaced in the voice panel", () =>
   assert.match(source, /const composerMode = normalizeText\(payload\.composerMode\)\.toLowerCase\(\)/);
   assert.match(source, /composerMode: action\.composerMode \|\| baseState\.flow\.composerMode/);
   assert.match(source, /\["visible", "focused-input"\]\.includes\(action\.composerMode\)[\s\S]*?composerError/);
-  assert.match(source, /composerMode === "focused-input"[\s\S]*?MiMoCode 当前光标/);
-  assert.match(rust, /context\.target\.agent_id == "mimocode"/);
-  assert.match(rust, /capture_focused_text_target/);
-  assert.match(rust, /insert_at_focused_text_target/);
-  assert.match(rust, /submit_at_focused_text_target/);
-  assert.match(rust, /"composerMode": "focused-input"/);
-  assert.match(rust, /已通过设备确认键发送 MiMoCode 语音草稿/);
+  assert.match(source, /composerMode === "focused-input"[\s\S]*?当前光标位置/);
+  assert.match(rust, /insert_into_current_text_input/);
+  assert.doesNotMatch(rust, /submit_at_focused_text_target/);
+  assert.match(rust, /write_focused_voice_test_draft/);
+  assert.match(dashboardSource, /invoke\("write_focused_voice_test_draft", \{ text \}\)/);
   assert.match(
     source,
     /if \(phase === "cancelled"\)[\s\S]*?设备录音已取消[\s\S]*?else if \(!ok\)[\s\S]*?板端录音处理失败/,

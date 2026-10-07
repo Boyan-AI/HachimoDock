@@ -1,10 +1,14 @@
+import { detectDesktopPlatform } from "./agent-voice-capabilities.js";
+
 /** User-facing instructions derived from the same normalized bindings as the device editor. */
 export function friendlyControlLabel(label = "") {
   return label.replace(/SW([123])\s*(短按|长按)/g, "$2 $1 键").replace(/SW([123])/g, "$1 键")
     .replace("摇杆中按短按", "按下摇杆").replace("摇杆中按长按", "长按摇杆中键");
 }
 
-export function buildUsageHelp(rows = [], actions = {}, enabled = true, pending = false) {
+/** 根据平台和按键映射生成说明，macOS 只粘贴到系统焦点并由用户手动发送。 */
+export function buildUsageHelp(rows = [], actions = {}, enabled = true, pending = false, platform = detectDesktopPlatform()) {
+  const focusedInput = platform === "macos";
   const labels = (action) => rows.filter(row => (actions[row.id] ?? row.defaultAction) === action)
     .map(row => friendlyControlLabel(row.label));
   const binding = action => labels(action).join("或");
@@ -15,9 +19,10 @@ export function buildUsageHelp(rows = [], actions = {}, enabled = true, pending 
     : "连接设备后，可在「按钮配置」查看和设置快捷键。";
   return {
     pending,
+    focusedInput,
     voice: !enabled ? "语音输入尚未启用，请在首页「语音输入」中开启。" : voice
-      ? `${voice}说话，松开后将文字追加到 Agent 输入框；可以分多次说。` : unbound,
-    confirm: confirm ? `${confirm}确认发送。` : rows.length
+      ? `${voice}说话，松开后将文字${focusedInput ? "粘贴到当前光标位置" : "追加到 Agent 输入框"}；可以分多次说。` : unbound,
+    confirm: focusedInput ? "文字不会自动发送，请在目标应用中手动发送。" : confirm ? `${confirm}确认发送。` : rows.length
       ? "尚未绑定确认键；可在 Agent 输入框中手动发送，或到「按钮配置」绑定确认键。"
       : "可在 Agent 输入框中手动发送，或连接设备后查看确认键设置。",
     chat: chat ? `在宠物界面，${chat}开始聊天；再次执行相同操作结束。` : unbound,

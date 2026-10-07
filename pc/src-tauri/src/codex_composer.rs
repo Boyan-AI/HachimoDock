@@ -1,5 +1,5 @@
 /*
- * [Input] A bound or current-visible ChatGPT（Codex）/Claude session, a current-visible WorkBuddy composer, or a captured MiMoCode terminal caret, plus staged voice text and an explicit confirm action.
+ * [Input] A bound or current-visible ChatGPT（Codex）/Claude session, a current-visible WorkBuddy composer, or a current system text caret, plus staged voice text and an explicit confirm action.
  * [Output] Read-only frontmost-Agent detection, exact desktop-session navigation, bounded composer lookup, per-recording appended draft updates, and explicit-confirm submission without automatic send on ASR finalization.
  * [Pos] Cross-platform foreground input bridge with session, draft, clipboard, stale-focus recovery, and Windows minimized-Claude restoration.
  * [Sync] If this file changes, update pc/.folder.md.
@@ -12,22 +12,10 @@ use serde_json::{json, Value};
 mod macos;
 
 #[cfg(target_os = "macos")]
-#[derive(Clone)]
-pub struct FocusedTextTarget(macos::FocusedTextTarget);
-
-#[cfg(target_os = "macos")]
-pub fn capture_focused_text_target() -> Result<FocusedTextTarget, String> {
-    macos::capture_focused_text_target().map(FocusedTextTarget)
-}
-
-#[cfg(target_os = "macos")]
-pub fn insert_at_focused_text_target(target: &FocusedTextTarget, text: &str) -> Result<(), String> {
-    macos::insert_at_focused_text_target(&target.0, text)
-}
-
-#[cfg(target_os = "macos")]
-pub fn submit_at_focused_text_target(target: &FocusedTextTarget) -> Result<(), String> {
-    macos::submit_at_focused_text_target(&target.0)
+/// 在最终识别时捕获当前焦点，写入前校验录音有效性，不切换应用或发送回车。
+pub fn insert_into_current_text_input(text: &str, may_write: impl Fn() -> bool) -> Result<(), String> {
+    let target = macos::capture_focused_text_target()?;
+    macos::insert_at_focused_text_target(&target, text, may_write)
 }
 
 #[cfg(windows)]

@@ -24,7 +24,7 @@
  *          model-v9 P4 defaults that map joystick up/down to Previous/Next,
  *          immediate P4 voice rearming after saved ASR configuration changes,
  *          exact-session-only Codex/Claude Desktop task navigation and voice input for selected P4 conversations,
- *          MiMoCode-only macOS final-text delivery plus Return at the captured current caret,
+ *          macOS system-focus final-text paste and a local delayed paste diagnostic,
  *          app-shell/native-operation-owned macOS Accessibility consent,
  *          shared first-visit onboarding state with a reopenable page guide,
  *          an ESP32-P4 A/B firmware update entry, shared current-key instructions,
@@ -45,6 +45,7 @@ import PageShell from "./shell/PageShell.jsx";
 import Card from "./shell/Card.jsx";
 import Button from "./shell/Button.jsx";
 import { useDeviceContext } from "./shell/DeviceContext.jsx";
+import { detectDesktopPlatform } from "./lib/agent-voice-capabilities.js";
 import { buildUsageHelp } from "./lib/usage-help.js";
 import PersonaVoiceModal from "./PersonaVoiceModal.jsx";
 import { useToast } from "./shell/ToastStack.jsx";
@@ -121,13 +122,13 @@ export const VOICE_BUTTON_OPTIONS = P4_VOICE_BUTTON_OPTIONS;
 
 export const BUTTON_FUNCTION_OPTIONS = [
   { id: "agent_prompt", label: "发送自定义指令", detail: "按下对应手势后，将该按钮下方填写的指令直接发送给当前 Code Agent。" },
-  { id: "voice_ptt", label: "语音输入", detail: "绑定到长按：按住说话，松开追加到输入框，确认后发送。" },
+  { id: "voice_ptt", label: "语音输入", detail: "绑定到长按：按住说话，松开写入输入框。Mac 跟随当前光标，手动发送；其他平台可用确认键发送。" },
   { id: "realtime_chat", label: "实时对话", detail: "在宠物界面触发后开始聊天，再次触发结束。组件运行时请先返回宠物界面。" },
   { id: "session_previous", label: "上一个", detail: "宠物界面切换到上一个会话气泡；组件中心切换到上一个组件。" },
   { id: "session_next", label: "下一个", detail: "宠物界面切换到下一个会话气泡；组件中心切换到下一个组件。" },
   { id: "session_clear", label: "清空主页会话", detail: "清除设备主页当前显示的全部会话；新会话或新活动会自动重新显示。" },
   { id: "component_center", label: "切换宠物/组件", detail: "切换宠物界面和组件列表；组件运行时请先返回。" },
-  { id: "page_enter", label: "确认", detail: "发送语音输入的文字，或打开选中的组件；组件内按其玩法操作。" },
+  { id: "page_enter", label: "确认", detail: "打开选中的组件；组件内按其玩法操作。其他平台也用于确认发送 Agent 语音草稿。" },
   { id: "page_back", label: "返回（取消）", detail: "取消当前选择，或从当前组件返回上一级。" },
   { id: "disabled", label: "不绑定", detail: "不为这个操作分配功能。" },
   { id: "system_page", label: "系统切页", detail: "保持 main / stats 页面切换，适合旋钮短按。" },
@@ -1357,11 +1358,15 @@ export default function DeviceDashboard({ active = true, binding, onUnbind, onOp
     usb.connected,
   ]);
 
+  // macOS 模拟文本复用生产焦点粘贴，延迟五秒供用户选择目标位置。
   const sendMockButtonInject = useCallback(() => {
     const text = (voiceState.mockInjectInput || "").trim();
-    if (!text || !selectedAgentId) return;
+    const usesFocusedInput = detectDesktopPlatform() === "macos";
+    if (!text || (!usesFocusedInput && !selectedAgentId)) return;
     voiceDispatch({ type: "set_mock_inject_pending", value: true });
-    const request = selectedAgentId === "workbuddy"
+    const request = usesFocusedInput
+      ? invoke("write_focused_voice_test_draft", { text })
+      : selectedAgentId === "workbuddy"
       ? invoke("write_workbuddy_voice_test_draft", { text })
       : postMockButtonInject({
       agentId: selectedAgentId,
@@ -1379,7 +1384,9 @@ export default function DeviceDashboard({ active = true, binding, onUnbind, onOp
         voiceDispatch({
           type: "set_mock_inject_result",
           ok: true,
-          message: selectedAgentId === "workbuddy"
+          message: usesFocusedInput
+            ? "已向当前光标发送粘贴操作，未发送；请核对目标输入框。"
+            : selectedAgentId === "workbuddy"
             ? "已追加到 WorkBuddy 草稿，未发送；请核对文字是否一致、有无截图蒙层。"
             : `已发送到当前会话 · ${sessionId}`,
           reply: response?.tokenPreview || "",

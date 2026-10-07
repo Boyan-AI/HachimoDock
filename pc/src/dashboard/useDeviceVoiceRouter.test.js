@@ -195,3 +195,12 @@ test("foreground-current route may resolve to the exact device session after gua
   assert.equal(fallback.flow.agentId, "codex");
   assert.equal(fallback.flow.sessionId, "session-from-device");
 });
+
+test("focused-input messages ignore the selected Agent and describe final-only paste", () => {
+  for (const agentId of ["codex", "claude-code", "workbuddy", "openclaw", "mimocode", ""]) {
+    assert.match(transcriptMessage({ agentId }, "listening", "focused-input"), /当前光标位置/);
+    assert.match(transcriptMessage({ agentId }, "partial", "focused-input"), /完整文字.*一次粘贴/);
+    assert.match(transcriptMessage({ agentId }, "draft_ready", "focused-input"), /不会自动发送/);
+    assert.doesNotMatch(transcriptMessage({ agentId }, "draft_ready", "focused-input"), /WorkBuddy|MiMoCode|ChatGPT|确认键/);
+  }
+});

@@ -38,7 +38,7 @@
  *          single-claim final recognition, cloud speech recognition, and
  *          prompt-free owner-only macOS ASR credential-file initialization,
  *          activation-gated, prefix-preserving, AX-node-rebindable live/final Codex/Claude visible-composer synchronization
- *          plus macOS MiMoCode current-caret draft insertion, with Return/send reserved for the device Confirm action,
+ *          plus macOS system-wide final-text paste without app activation or Return,
  *          with non-prompting macOS Accessibility diagnostics and native system-consent requests at startup and protected operations,
  *          without background fallback, managed bridge-only non-visible-agent voice injection, stale
  *          LaunchAgent/legacy bridge cleanup with install-relative Node resources
@@ -668,6 +668,25 @@ async fn write_workbuddy_voice_test_draft(text: String) -> Result<(), String> {
     }).await.map_err(|_| "WorkBuddy 草稿测试线程异常".to_string())?
 }
 
+/// 本地焦点写入诊断：给用户五秒选择输入位置，不调用 ASR 或发送回车。
+#[tauri::command]
+async fn write_focused_voice_test_draft(text: String) -> Result<(), String> {
+    if text.trim().is_empty() || text.chars().count() > 2048 {
+        return Err("请输入 1–2048 字的测试文本".into());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        tauri::async_runtime::spawn_blocking(move || {
+            thread::sleep(Duration::from_secs(5));
+            let may_write = || active_device_voice_context().lock().is_ok_and(|active| active.is_none());
+            if !may_write() { return Err("请先结束设备录音，再测试焦点写入".into()); }
+            codex_composer::insert_into_current_text_input(&text, may_write)
+        }).await.map_err(|_| "焦点写入测试线程异常".to_string())?
+    }
+    #[cfg(not(target_os = "macos"))]
+    Err("系统焦点语音输入目前仅支持 macOS".into())
+}
+
 #[tauri::command]
 fn request_codex_accessibility_permission() -> serde_json::Value {
     #[cfg(target_os = "macos")]
@@ -718,8 +737,6 @@ struct DeviceVoiceContext {
     composer_startup_complete: Mutex<bool>,
     composer_startup_ready: Condvar,
     started_at: Instant,
-    #[cfg(target_os = "macos")]
-    focused_text_target: Mutex<Option<codex_composer::FocusedTextTarget>>,
 }
 
 // Push-to-talk latency timeline: fixed stage names and elapsed milliseconds
@@ -879,9 +896,13 @@ fn should_preserve_exact_auto_binding(
         && !current.session_id.is_empty()
 }
 
+/// macOS 语音只依赖本段录音有效性，Agent 展示会话变化不改变输入焦点路由。
 fn device_voice_target_is_current(context: &DeviceVoiceContext) -> bool {
     if context.cancelled.load(Ordering::SeqCst) {
         return false;
+    }
+    if cfg!(target_os = "macos") {
+        return true;
     }
     if device_voice_uses_current_visible_session(context) {
         if let Ok(binding) = p4_session_binding().lock() {
@@ -890,21 +911,6 @@ fn device_voice_target_is_current(context: &DeviceVoiceContext) -> bool {
             {
                 return true;
             }
-        }
-        let (agent_id, _) = resolve_usb_inject_target(&context.board_device_id);
-        return agent_id == context.target.agent_id;
-    }
-    #[cfg(target_os = "macos")]
-    if context.target.agent_id == "mimocode" {
-        if let Ok(binding) = p4_session_binding().lock() {
-            if binding.board_device_id == context.target.board_device_id
-                && binding.agent_id == context.target.agent_id
-            {
-                return true;
-            }
-        }
-        if context.target.generation != 0 {
-            return false;
         }
         let (agent_id, _) = resolve_usb_inject_target(&context.board_device_id);
         return agent_id == context.target.agent_id;
@@ -935,7 +941,11 @@ fn p4_session_binding_inject_session_id(target: &P4SessionBinding) -> &str {
     }
 }
 
+/// 系统焦点输入没有 Agent 会话目标，事件中用独立标识避免误导界面。
 fn device_voice_session_id(context: &DeviceVoiceContext) -> &str {
+    if cfg!(target_os = "macos") {
+        return "focused";
+    }
     if device_voice_uses_current_visible_session(context) {
         "current"
     } else {
@@ -968,19 +978,10 @@ fn claim_device_voice_final(final_handled: &AtomicBool) -> bool {
     !final_handled.swap(true, Ordering::SeqCst)
 }
 
+/// macOS 统一使用当前焦点输入，其余平台保留既有 Agent 输入桥。
 fn device_voice_composer_mode(context: &DeviceVoiceContext) -> &'static str {
-    #[cfg(target_os = "macos")]
-    if context.target.agent_id == "mimocode" {
-        return if context
-            .focused_text_target
-            .lock()
-            .map(|target| target.is_some())
-            .unwrap_or(false)
-        {
-            "focused-input"
-        } else {
-            "unavailable"
-        };
+    if cfg!(target_os = "macos") {
+        return "focused-input";
     }
     if !agent_uses_visible_composer(&context.target.agent_id) {
         "agent-bus"
@@ -1159,6 +1160,7 @@ fn report_device_voice_delivery_failure(
     complete_device_voice_context(context);
 }
 
+/// 最终识别只落一次文字；macOS 在这一刻捕获系统焦点，保留普通粘贴语义。
 fn stage_device_voice_final(
     context: Arc<DeviceVoiceContext>,
     revision: u64,
@@ -1200,66 +1202,29 @@ fn stage_device_voice_final(
     let _ = context.emitter.emit("voice-transcript", event.clone());
     let _ = context.emitter.emit("usb-audio-stream", event);
 
+
     #[cfg(target_os = "macos")]
-    if context.target.agent_id == "mimocode" {
-        let target = context
-            .focused_text_target
-            .lock()
-            .ok()
-            .and_then(|target| target.as_ref().cloned());
-        let Some(target) = target else {
-            let error = context
-                .composer_error
-                .lock()
-                .map(|value| value.clone())
-                .unwrap_or_default();
-            let unavailable =
-                "MiMoCode 当前光标未定位，本次语音未写入；请先点击终端输入位置".to_string();
-            report_device_voice_delivery_failure(
-                &context,
-                revision,
-                &text,
-                if error.trim().is_empty() {
-                    unavailable.as_str()
-                } else {
-                    error.as_str()
-                },
-                &unavailable,
-                "FOCUSED_TEXT_INPUT_UNAVAILABLE",
-            );
-            return;
-        };
+    if cfg!(target_os = "macos") {
         thread::spawn(move || {
-            if !device_voice_target_is_current(&context) {
-                cancel_device_voice_context(
-                    &context,
-                    "voice target changed before MiMoCode draft insertion",
-                );
-                return;
-            }
-            match codex_composer::insert_at_focused_text_target(&target, &text) {
+            // 主线程需要执行剪贴板操作，不能跨主线程调用持有活动录音锁。
+            let may_write = || {
+                !context.cancelled.load(Ordering::SeqCst)
+                    && active_device_voice_context().lock().is_ok_and(|active| {
+                        active.as_ref().is_some_and(|current| Arc::ptr_eq(current, &context))
+                    })
+            };
+            if !may_write() { return; }
+            let result = codex_composer::insert_into_current_text_input(&text, may_write);
+            match result {
                 Ok(()) => {
-                    if let Ok(mut composer_error) = context.composer_error.lock() {
-                        composer_error.clear();
-                    }
-                    context.draft_ready.store(true, Ordering::SeqCst);
-                    emit_device_voice_transcript(
-                        &context,
-                        "draft_ready",
-                        revision,
-                        &text,
-                        true,
-                        true,
-                        "",
-                    );
+                    record_device_voice_timing(&context, "draft_written", true);
+                    emit_device_voice_transcript(&context, "draft_ready", revision, &text, true, true, "");
+                    // 系统范围输入仅完成粘贴；设备确认键不能向任意应用发送回车。
+                    complete_device_voice_context(&context);
                 }
                 Err(error) => report_device_voice_delivery_failure(
-                    &context,
-                    revision,
-                    &text,
-                    &error,
-                    "MiMoCode 当前光标草稿写入失败",
-                    "FOCUSED_TEXT_INPUT_FAILED",
+                    &context, revision, &text, &error,
+                    "当前输入焦点写入失败，识别文字已保留", "FOCUSED_TEXT_INPUT_FAILED",
                 ),
             }
         });
@@ -1432,69 +1397,6 @@ fn confirm_pending_device_voice_draft(topic: &str, payload: &serde_json::Value) 
     }
     emit_device_voice_transcript(&context, "submitting", revision, &text, true, true, "");
 
-    #[cfg(target_os = "macos")]
-    if context.target.agent_id == "mimocode" {
-        let target = context
-            .focused_text_target
-            .lock()
-            .ok()
-            .and_then(|target| target.as_ref().cloned());
-        let Some(target) = target else {
-            report_device_voice_delivery_failure(
-                &context,
-                revision,
-                &text,
-                "MiMoCode 语音草稿的光标定位已丢失",
-                "MiMoCode 当前光标未定位，未执行确认发送",
-                "FOCUSED_TEXT_INPUT_UNAVAILABLE",
-            );
-            return true;
-        };
-        thread::spawn(
-            move || match codex_composer::submit_at_focused_text_target(&target) {
-                Ok(()) if device_voice_target_is_current(&context) => {
-                    emit_device_voice_transcript(
-                        &context,
-                        "submitted",
-                        revision,
-                        &text,
-                        true,
-                        true,
-                        "",
-                    );
-                    let _ = context.emitter.emit(
-                        "usb-input-action-result",
-                        serde_json::json!({
-                            "ok": true,
-                            "pending": false,
-                            "view": "voice_input",
-                            "utteranceId": context.utterance_id,
-                            "text": text,
-                            "agentId": context.target.agent_id,
-                            "sessionId": device_voice_session_id(&context),
-                            "message": "已通过设备确认键发送 MiMoCode 语音草稿",
-                            "composerMode": "focused-input",
-                            "composerError": "",
-                        }),
-                    );
-                    complete_device_voice_context(&context);
-                }
-                Ok(()) => cancel_device_voice_context(
-                    &context,
-                    "voice target changed during MiMoCode draft confirmation",
-                ),
-                Err(error) => report_device_voice_delivery_failure(
-                    &context,
-                    revision,
-                    &text,
-                    &error,
-                    "MiMoCode 确认键发送失败，语音草稿未自动重发",
-                    "FOCUSED_TEXT_SUBMIT_FAILED",
-                ),
-            },
-        );
-        return true;
-    }
 
     if !agent_uses_visible_composer(&context.target.agent_id) {
         submit_device_voice_via_agent_bus(context, text);
@@ -1609,6 +1511,7 @@ fn fail_device_voice_context(context: &Arc<DeviceVoiceContext>, error: &str) {
     complete_device_voice_context(context);
 }
 
+/// 开始设备录音；macOS 不准备或激活 Agent 输入框，只在最终识别时粘贴。
 fn start_device_voice_context(
     emitter: &tauri::AppHandle,
     board_device_id: &str,
@@ -1646,8 +1549,6 @@ fn start_device_voice_context(
         composer_startup_complete: Mutex::new(false),
         composer_startup_ready: Condvar::new(),
         started_at: Instant::now(),
-        #[cfg(target_os = "macos")]
-        focused_text_target: Mutex::new(None),
     });
     record_device_voice_timing(&context, "context_started", true);
 
@@ -1672,25 +1573,6 @@ fn start_device_voice_context(
     }
     emit_device_voice_transcript(&context, "listening", 0, "", false, true, "");
 
-    #[cfg(target_os = "macos")]
-    if context.target.agent_id == "mimocode" {
-        match codex_composer::capture_focused_text_target() {
-            Ok(target) => {
-                if let Ok(mut slot) = context.focused_text_target.lock() {
-                    *slot = Some(target);
-                }
-                if let Ok(mut composer_error) = context.composer_error.lock() {
-                    composer_error.clear();
-                }
-            }
-            Err(error) => {
-                if let Ok(mut composer_error) = context.composer_error.lock() {
-                    *composer_error = error;
-                }
-            }
-        }
-        emit_device_voice_transcript(&context, "listening", 0, "", false, true, "");
-    }
 
     if device_voice_uses_current_visible_session(&context) {
         eprintln!(
@@ -1703,7 +1585,7 @@ fn start_device_voice_context(
         device_voice_bound_target_is_addressable(session_queue_empty_at_start, &context.target);
     let visible_target_is_addressable =
         device_voice_uses_current_visible_session(&context) || bound_target_is_addressable;
-    if agent_uses_visible_composer(&context.target.agent_id) && visible_target_is_addressable {
+    if !cfg!(target_os = "macos") && agent_uses_visible_composer(&context.target.agent_id) && visible_target_is_addressable {
         let startup_context = context.clone();
         if let Err(error) = thread::Builder::new()
             .name("pet-visible-composer-startup".to_string())
@@ -1825,7 +1707,7 @@ fn start_device_voice_context(
             }
             mark_visible_composer_startup_complete(&context);
         }
-    } else if agent_uses_visible_composer(&context.target.agent_id) {
+    } else if !cfg!(target_os = "macos") && agent_uses_visible_composer(&context.target.agent_id) {
         if let Ok(mut composer_error) = context.composer_error.lock() {
             let agent_label = visible_composer_agent_label(&context.target.agent_id);
             *composer_error = if context.target.session_id.is_empty() {
@@ -1870,7 +1752,7 @@ fn start_device_voice_context(
                 if let Ok(mut latest_confidence) = context.latest_confidence.lock() {
                     *latest_confidence = confidence;
                 }
-                if agent_streams_voice_draft(&context.target.agent_id) {
+                if !cfg!(target_os = "macos") && agent_streams_voice_draft(&context.target.agent_id) {
                     if let Ok(composer) = context.composer.lock() {
                         if let Some(composer) = composer.as_ref() {
                             if let Err(error) = composer.update(revision, &text) {
@@ -10061,6 +9943,7 @@ pub fn run() {
             button_config_signal,
             check_codex_accessibility_permission,
             write_workbuddy_voice_test_draft,
+            write_focused_voice_test_draft,
             request_codex_accessibility_permission,
             set_p4_session_binding,
             dispatch_remote_cli_binding,

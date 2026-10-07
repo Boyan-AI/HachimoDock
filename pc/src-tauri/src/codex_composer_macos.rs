@@ -1,5 +1,5 @@
 /*
- * [Input] A unique or current-visible ChatGPT（Codex）/Claude task, a pinned WorkBuddy composer, or a captured MiMoCode terminal caret, plus staged device speech and a later explicit Confirm action.
+ * [Input] A unique or current-visible ChatGPT（Codex）/Claude task, a pinned WorkBuddy composer, or a current system text caret, plus staged device speech and a later explicit Confirm action.
  * [Output] Read-only active-Agent detection, native consent with activation-ordered Accessibility-pane routing,
  *          activation-gated Chromium AX priming, AX-only stable/rebindable
  *          exact-session per-recording draft append with original-prefix preservation, including
@@ -30,7 +30,7 @@ use core_foundation::{
     string::CFString,
 };
 use core_graphics::{
-    event::{CGEvent, CGEventFlags, CGEventTapLocation, KeyCode},
+    event::{CGEvent, CGEventFlags, CGEventTapLocation},
     event_source::{CGEventSource, CGEventSourceStateID},
     geometry::{CGPoint, CGSize},
 };
@@ -162,6 +162,9 @@ pub(super) struct MacosComposerState {
 #[derive(Clone, Debug)]
 pub(super) struct FocusedTextTarget {
     pid: i32,
+    // 保留原生控件身份，避免两个外观相同的文本框被当成同一焦点。
+    element: Option<CFType>,
+    window: Option<CFType>,
     role: String,
     subrole: String,
     identifier: String,
@@ -395,31 +398,6 @@ fn set_pasteboard_text(text: &str) -> Result<(), String> {
     })
 }
 
-fn post_keyboard_event(keycode: u16, flags: CGEventFlags) -> Result<(), String> {
-    let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
-        .map_err(|_| "无法创建 macOS 键盘事件源".to_string())?;
-    let down = CGEvent::new_keyboard_event(source.clone(), keycode, true)
-        .map_err(|_| "无法创建 macOS 按键按下事件".to_string())?;
-    down.set_flags(flags);
-    down.post(CGEventTapLocation::HID);
-    let up = CGEvent::new_keyboard_event(source, keycode, false)
-        .map_err(|_| "无法创建 macOS 按键释放事件".to_string())?;
-    up.set_flags(flags);
-    up.post(CGEventTapLocation::HID);
-    Ok(())
-}
-
-fn post_command_key(keycode: u16) -> Result<(), String> {
-    post_keyboard_event(keycode, CGEventFlags::CGEventFlagCommand)
-}
-
-fn paste_focused_text(text: &str) -> Result<(), String> {
-    set_pasteboard_text(text)?;
-    post_command_key(MAC_KEYCODE_V)?;
-    thread::sleep(KEYBOARD_READBACK_DELAY);
-    Ok(())
-}
-
 // WorkBuddy must never emit global HID shortcuts: desktop screenshot tools can
 // intercept them before the editor sees them. Use a private source and a pinned
 // process destination; failure must not fall back to the global event stream.
@@ -487,6 +465,7 @@ fn focused_text_role_is_supported(role: &str) -> bool {
     )
 }
 
+/// 读取当前前台文本控件；拒绝密码、禁用及明确只读的位置。
 fn capture_focused_text_target_unchecked() -> Result<FocusedTextTarget, String> {
     let system = AXUIElement::system_wide();
     let app = ax_element_attribute(&system, "AXFocusedApplication")
@@ -500,17 +479,25 @@ fn capture_focused_text_target_unchecked() -> Result<FocusedTextTarget, String> 
         ));
     }
     let focused = ax_element_attribute(&app, "AXFocusedUIElement")
-        .ok_or_else(|| "MiMoCode 当前没有可读取的文本光标；请先点击终端输入位置".to_string())?;
+        .ok_or_else(|| "当前没有可读取的文本光标；请先点击目标输入框".to_string())?;
     let role = ax_string_attribute(&focused, "AXRole");
     if !focused_text_role_is_supported(&role) {
         return Err(format!(
-            "MiMoCode 当前焦点不是可输入文本的位置（{}）；请先点击终端输入位置",
+            "当前焦点不是可输入文本的位置（{}）；请先点击目标输入框",
             if role.is_empty() {
                 "未知控件"
             } else {
                 &role
             }
         ));
+    }
+    let subrole = ax_string_attribute(&focused, "AXSubrole");
+    let enabled = focused.attribute(&AXAttribute::new(&CFString::new("AXEnabled")))
+        .ok().and_then(|value| value.downcast::<CFBoolean>()).map(bool::from);
+    let editable = focused.attribute(&AXAttribute::new(&CFString::new("AXEditable")))
+        .ok().and_then(|value| value.downcast::<CFBoolean>()).map(bool::from);
+    if !focused_text_input_is_allowed(&subrole, enabled, editable) {
+        return Err("当前输入框为密码框、已禁用或只读，本次语音未写入".into());
     }
     let window = ax_element_attribute(&focused, "AXWindow")
         .or_else(|| ax_element_attribute(&app, "AXFocusedWindow"));
@@ -524,8 +511,10 @@ fn capture_focused_text_target_unchecked() -> Result<FocusedTextTarget, String> 
     .unwrap_or_default();
     Ok(FocusedTextTarget {
         pid,
+        element: Some(focused.as_CFType()),
+        window: window.as_ref().map(TCFType::as_CFType),
         role,
-        subrole: ax_string_attribute(&focused, "AXSubrole"),
+        subrole,
         identifier,
         window_title: window
             .as_ref()
@@ -536,8 +525,25 @@ fn capture_focused_text_target_unchecked() -> Result<FocusedTextTarget, String> 
     })
 }
 
+/// 不要求所有应用公开 AXEditable，但明确拒绝已报告的不可编辑状态。
+fn focused_text_input_is_allowed(subrole: &str, enabled: Option<bool>, editable: Option<bool>) -> bool {
+    subrole != "AXSecureTextField" && enabled != Some(false) && editable != Some(false)
+}
+
+/// 仅在应用公开可读文本值时取得写入前后快照，不读取密码控件。
+fn focused_text_value() -> Option<String> {
+    let system = AXUIElement::system_wide();
+    let app = ax_element_attribute(&system, "AXFocusedApplication")?;
+    let focused = ax_element_attribute(&app, "AXFocusedUIElement")?;
+    let value: CFType = focused.attribute(&AXAttribute::new(&CFString::new("AXValue"))).ok()?;
+    value.downcast::<CFString>().map(|value| value.to_string())
+}
+
+/// 同时校验原生控件身份与窗口信息，粘贴过程中焦点变化则停止。
 fn focused_text_target_matches(captured: &FocusedTextTarget, current: &FocusedTextTarget) -> bool {
     captured.pid == current.pid
+        && captured.element == current.element
+        && captured.window == current.window
         && captured.role == current.role
         && captured.subrole == current.subrole
         && (captured.identifier.is_empty()
@@ -554,61 +560,90 @@ fn focused_text_target_matches(captured: &FocusedTextTarget, current: &FocusedTe
             || captured.window_bounds == current.window_bounds)
 }
 
+/// 捕获光标前读取实际权限，避免自动弹窗抢走待写入应用的焦点。
 pub(super) fn capture_focused_text_target() -> Result<FocusedTextTarget, String> {
-    ensure_accessibility_permission()?;
+    if !accessibility_permission_granted() {
+        return Err("Pet Manager 需要 macOS 辅助功能权限；请在语音输入区域请求系统授权后重试".into());
+    }
     capture_focused_text_target_unchecked()
 }
 
+/// 每次真正粘贴前检查录音取消状态，检查期间不持有主线程可能需要的状态锁。
 pub(super) fn insert_at_focused_text_target(
     captured: &FocusedTextTarget,
     text: &str,
+    may_write: impl Fn() -> bool,
 ) -> Result<(), String> {
-    ensure_accessibility_permission()?;
+    if !may_write() { return Err("本段录音已结束或取消，本次语音未写入".into()); }
+    if !accessibility_permission_granted() {
+        return Err("Pet Manager 需要 macOS 辅助功能权限，本次语音未写入".into());
+    }
     let current = capture_focused_text_target_unchecked()?;
     if !focused_text_target_matches(captured, &current) {
         return Err(
-            "MiMoCode 录音期间前台窗口或文本光标已变化，本次语音未写入；请将光标停在输入位置后重试"
+            "粘贴前的窗口或输入焦点已变化，本次语音未写入；请将光标停在输入位置后重试"
                 .to_string(),
         );
     }
     let snapshot = PasteboardSnapshot::capture()?;
     let current = match capture_focused_text_target_unchecked() {
         Ok(current) => current,
-        Err(error) => {
-            snapshot.restore();
-            return Err(error);
-        }
+        Err(error) => return Err(error),
     };
     if !focused_text_target_matches(captured, &current) {
-        snapshot.restore();
         return Err(
-            "MiMoCode 备份剪贴板期间前台窗口或文本光标已变化，本次语音未写入；请将光标停在输入位置后重试"
+            "备份剪贴板期间输入焦点已变化，本次语音未写入；请将光标停在输入位置后重试"
                 .to_string(),
         );
     }
+    let before_value = focused_text_value();
+    let mut written_change_count = None;
     let result: Result<(), String> = (|| {
-        paste_focused_text(text)?;
+        let prepared = set_pasteboard_text(text);
+        written_change_count = Some(run_on_main(|_| NSPasteboard::generalPasteboard().changeCount()));
+        prepared?;
+        let current = capture_focused_text_target_unchecked()?;
+        if !focused_text_target_matches(captured, &current) {
+            return Err("准备粘贴期间输入焦点已变化，本次语音未写入".into());
+        }
+        if !may_write() { return Err("本段录音已结束或取消，本次语音未写入".into()); }
+        // 标准文本应用只消费 HID 快捷键；投递前已复核前台焦点。
+        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
+            .map_err(|_| "无法创建当前焦点输入事件".to_string())?;
+        for pressed in [true, false] {
+            let event = CGEvent::new_keyboard_event(source.clone(), MAC_KEYCODE_V, pressed)
+                .map_err(|_| "无法创建当前焦点粘贴事件".to_string())?;
+            event.set_flags(CGEventFlags::CGEventFlagCommand);
+            event.post(CGEventTapLocation::HID);
+        }
+        let deadline = Instant::now() + COMPOSER_READBACK_TIMEOUT;
+        loop {
+            thread::sleep(KEYBOARD_READBACK_DELAY);
+            let current = capture_focused_text_target_unchecked()?;
+            if !focused_text_target_matches(captured, &current) {
+                return Err("粘贴后输入焦点已变化，无法确认目标收到文字".into());
+            }
+            if before_value.as_ref().is_some_and(|before| focused_text_value().as_ref().is_some_and(|after| after != before)) {
+                break;
+            }
+            if before_value.is_none() {
+                break;
+            }
+            if Instant::now() >= deadline {
+                return Err("目标输入框未确认收到文字；已停止，本次不会自动重试".into());
+            }
+        }
         Ok(())
     })();
-    snapshot.restore();
-    result.map_err(|error| {
-        if error.starts_with("MiMoCode ") {
-            error
-        } else {
-            format!("MiMoCode 当前光标输入失败: {error}")
+    // 用户期间复制了其他内容时，不用旧备份覆盖用户的新剪贴板。
+    run_on_main(move |_| {
+        if written_change_count.is_some_and(|count| NSPasteboard::generalPasteboard().changeCount() == count) {
+            snapshot.restore();
         }
-    })
+    });
+    result.map_err(|error| format!("当前光标输入失败: {error}"))
 }
 
-pub(super) fn submit_at_focused_text_target(captured: &FocusedTextTarget) -> Result<(), String> {
-    ensure_accessibility_permission()?;
-    let current = capture_focused_text_target_unchecked()?;
-    if !focused_text_target_matches(captured, &current) {
-        return Err("MiMoCode 语音草稿写入后前台窗口或文本光标已变化，未执行确认键".to_string());
-    }
-    post_keyboard_event(KeyCode::RETURN, CGEventFlags::CGEventFlagNull)
-        .map_err(|error| format!("MiMoCode 确认键发送失败: {error}"))
-}
 
 fn ax_point_attribute(element: &AXUIElement, name: &str) -> Option<CGPoint> {
     let attribute = AXAttribute::new(&CFString::new(name));
@@ -2432,9 +2467,20 @@ mod tests {
     }
 
     #[test]
+    fn focused_text_input_rejects_secure_disabled_and_readonly_controls() {
+        assert!(!focused_text_input_is_allowed("AXSecureTextField", Some(true), Some(true)));
+        assert!(!focused_text_input_is_allowed("", Some(false), None));
+        assert!(!focused_text_input_is_allowed("", Some(true), Some(false)));
+        assert!(focused_text_input_is_allowed("", Some(true), Some(true)));
+        assert!(focused_text_input_is_allowed("", None, None));
+    }
+
+    #[test]
     fn focused_text_input_rejects_changed_process_or_control() {
         let captured = FocusedTextTarget {
             pid: 101,
+            element: None,
+            window: None,
             role: "AXTextArea".to_string(),
             subrole: String::new(),
             identifier: "terminal-input".to_string(),

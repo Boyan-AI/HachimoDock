@@ -222,7 +222,14 @@ export function deviceVoiceRouterReducer(state, action) {
   }
 }
 
+/** 系统焦点模式使用独立说明，不显示所选 Agent 的会话或发送指引。 */
 export function transcriptMessage(payload, phase, composerMode) {
+  if (composerMode === "focused-input") {
+    if (phase === "listening") return "正在聆听；松开并识别完成后，文字会粘贴到当前光标位置。";
+    if (phase === "partial") return "正在实时识别；完整文字会在识别完成后一次粘贴。";
+    if (["recognizing", "finalizing"].includes(phase)) return "正在将完整识别文字粘贴到当前输入框...";
+    if (phase === "draft_ready") return "已向当前光标发送粘贴操作，不会自动发送；请核对目标输入框。";
+  }
   const visibleAgentLabel = normalizeText(payload?.agentId).toLowerCase() === "workbuddy" ? "WorkBuddy" : normalizeText(payload?.agentId).toLowerCase() === "claude-code"
     ? "Claude"
     : "ChatGPT（Codex）";
@@ -233,9 +240,6 @@ export function transcriptMessage(payload, phase, composerMode) {
     if (composerMode === "visible") {
       return `正在聆听，识别文字会实时同步到 ${visibleAgentLabel} 输入框。`;
     }
-    if (composerMode === "focused-input") {
-      return "正在聆听；松开后只把文字写入 MiMoCode 当前光标。";
-    }
     return "正在聆听并实时识别。";
   }
   if (phase === "partial") {
@@ -245,18 +249,12 @@ export function transcriptMessage(payload, phase, composerMode) {
     if (composerMode === "visible") {
       return `正在实时识别并同步到 ${visibleAgentLabel}；松开后保留为草稿，不自动发送。`;
     }
-    if (composerMode === "focused-input") {
-      return "正在实时识别；松开后保留为草稿，不自动发送。";
-    }
     return "正在实时识别；松开后保留为草稿，不自动发送。";
   }
   if (phase === "finalizing" || phase === "recognizing") {
     return "正在把最终识别文字写入输入框...";
   }
   if (phase === "draft_ready") {
-    if (composerMode === "focused-input") {
-      return "语音文字已写入 MiMoCode，不会自动发送。";
-    }
     if (composerMode === "agent-bus") {
       return "语音文字已识别为待发送草稿，不会自动发送。";
     }
@@ -264,13 +262,10 @@ export function transcriptMessage(payload, phase, composerMode) {
   }
   if (phase === "submitting") {
     if (composerMode === "visible") return `已收到确认键，正在通过 ${visibleAgentLabel} 输入框发送...`;
-    if (composerMode === "focused-input") return "已收到确认键，正在发送 MiMoCode 草稿...";
     return "已收到确认键，正在发送到当前会话...";
   }
   if (phase === "submitted") {
-    return composerMode === "focused-input"
-      ? "已通过设备确认键发送 MiMoCode 草稿。"
-      : `已通过 ${visibleAgentLabel} 可见输入框发送到当前会话。`;
+    return `已通过 ${visibleAgentLabel} 可见输入框发送到当前会话。`;
   }
   if (phase === "cancelled") {
     return normalizeText(payload.error) || "录音目标已变化，本次语音已取消。";

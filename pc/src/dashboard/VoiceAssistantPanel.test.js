@@ -87,12 +87,12 @@ test("Shows live P4 device microphone relay and recognition status", () => {
   assert.match(source, /实时识别文本/);
   assert.match(source, /\{visibleVoiceAgentLabel\} 可见同步/);
   assert.match(source, /visibleVoiceAgentId === "claude-code"[\s\S]*?"Claude"[\s\S]*?"ChatGPT（Codex）"/);
-  assert.match(source, /MiMoCode 光标草稿/);
+  assert.match(source, /当前光标输入/);
   assert.doesNotMatch(source, /后台回退|会话桥接/);
   assert.match(source, /composerMode === "visible"/);
   assert.match(source, /composerMode === "focused-input"/);
-  assert.match(source, /isMimocodeVoice/);
-  assert.match(source, /保持 MiMoCode 终端在前台/);
+  assert.match(source, /usesFocusedInput/);
+  assert.match(source, /请点击要输入文字的位置/);
   assert.match(source, /usageHelp\.confirm/);
   assert.doesNotMatch(source, /默认 SW3/);
 });
@@ -103,7 +103,7 @@ test("Guides ChatGPT（Codex） and Claude foreground failures with macOS and Wi
 
   assert.match(source, /export const needsMacosAccessibilityGuidance/);
   assert.match(source, /export function needsVisibleComposerGuidance/);
-  assert.match(source, /export function detectDesktopPlatform/);
+  assert.match(source, /export \{ detectDesktopPlatform \}/);
   assert.match(source, /系统设置 → 隐私与安全性 → 辅助功能/);
   assert.match(source, /请求系统授权/);
   assert.match(source, /macOS 弹窗中点击“打开系统设置”/);
@@ -166,7 +166,7 @@ test("Combines primary status and actions while pairing settings and diagnostics
   assert.match(source, /voice-panel__advanced--diagnostics/);
   assert.match(source, /formatVoiceUserMessage/);
   assert.match(source, /设备未收到语音监听指令，请确认 USB 连接后重试/);
-  assert.match(source, /draft_ready: "草稿待确认"/);
+  assert.match(source, /draft_ready: "文字已写入"/);
   assert.match(source, /usageHelp\.confirm/);
   assert.match(css, /\.voice-panel__command\s*\{/);
   assert.match(css, /\.voice-panel__advanced-grid\s*\{/);
